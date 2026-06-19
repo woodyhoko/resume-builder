@@ -40,9 +40,61 @@
     select.value = t.key;
     descEl.textContent = t.description || "";
     if (editing) setEdit(true);
-    requestAnimationFrame(() => { fitToPage(); checkFit(); });
+    requestAnimationFrame(() => { fitToPage(); enableArrange(); checkFit(); });
     try { history.replaceState(null, "", "?t=" + t.key); } catch (e) {}
   }
+
+  // ---- On-résumé drag-to-reorder (Arrange mode) ----
+  let dragKey = null;
+
+  function enableArrange() {
+    const page = stage.querySelector(".page");
+    if (!page) return;
+    stage.classList.toggle("rb-arrange", !!(window.RBApp && window.RBApp.arrange));
+    if (!(window.RBApp && window.RBApp.arrange)) return;
+    page.querySelectorAll("[data-rb-drag]").forEach((elm) => {
+      const key = elm.getAttribute("data-rb-drag");
+      if (!key.startsWith("exp:")) return;          // only experience is reorderable on-page
+      elm.setAttribute("draggable", "true");
+      const ctl = document.createElement("div");
+      ctl.className = "rb-ctl"; ctl.setAttribute("data-html2canvas-ignore", "true");
+      ctl.innerHTML = '<span class="mv">⠿ drag</span><button class="rm" title="Move to collection">✕</button>';
+      elm.appendChild(ctl);
+      ctl.querySelector(".rm").addEventListener("click", (e) => {
+        e.stopPropagation();
+        const id = key.slice(4);
+        window.ResumeStore.update((s) => { const t = s.experience.find((x) => x.id === id); if (t) t.include = false; });
+      });
+      elm.addEventListener("dragstart", (ev) => { dragKey = key; elm.classList.add("rb-drag"); ev.dataTransfer.effectAllowed = "move"; try { ev.dataTransfer.setData("text/plain", key); } catch (e) {} });
+      elm.addEventListener("dragend", () => { elm.classList.remove("rb-drag"); page.querySelectorAll(".rb-over").forEach((x) => x.classList.remove("rb-over")); });
+      elm.addEventListener("dragover", (ev) => { ev.preventDefault(); elm.classList.add("rb-over"); });
+      elm.addEventListener("dragleave", () => elm.classList.remove("rb-over"));
+      elm.addEventListener("drop", (ev) => {
+        ev.preventDefault(); elm.classList.remove("rb-over");
+        const below = ev.offsetY > elm.offsetHeight / 2;
+        dropExp(dragKey || (ev.dataTransfer && ev.dataTransfer.getData("text/plain")), key.slice(4), below);
+        dragKey = null;
+      });
+    });
+  }
+
+  // Reorder / insert an experience block. fromKey: "exp:ID" or "collection:ID".
+  function dropExp(fromKey, toId, below) {
+    if (!fromKey) return;
+    const fromId = fromKey.split(":")[1];
+    if (fromId === toId) return;
+    window.ResumeStore.update((s) => {
+      const arr = s.experience;
+      const item = arr.find((x) => x.id === fromId);
+      if (!item) return;
+      item.include = true;
+      arr.splice(arr.indexOf(item), 1);
+      let ti = arr.findIndex((x) => x.id === toId);
+      if (ti < 0) ti = arr.length - 1;
+      arr.splice(below ? ti + 1 : ti, 0, item);
+    });
+  }
+  window.RBApp_dropExp = dropExp;   // used by the collection tray in editor.js
 
   // Scale every px length in a stylesheet (fonts, margins, gaps, borders…) by f.
   // Leaves in/mm units (page box, column widths) untouched so the sheet only
@@ -176,8 +228,20 @@
 
   // Expose a small API for the editor module; re-render the preview from the
   // store whenever the user edits blocks, reorders, rephrases, or imports.
-  window.RBApp = { autoFit: true, fitScale: 1, rerender: () => apply(current) };
+  window.RBApp = { autoFit: true, fitScale: 1, arrange: false, rerender: () => apply(current) };
   if (window.ResumeStore) window.ResumeStore.subscribe(() => apply(current));
+
+  const arrBtn = document.getElementById("btn-arrange");
+  if (arrBtn) {
+    arrBtn.addEventListener("click", () => {
+      window.RBApp.arrange = !window.RBApp.arrange;
+      arrBtn.classList.toggle("on", window.RBApp.arrange);
+      apply(current);
+    });
+    if (new URLSearchParams(location.search).get("arrange") === "1") {
+      window.RBApp.arrange = true; arrBtn.classList.add("on");
+    }
+  }
 
   // Editor drawer
   if (window.ResumeEditor) {

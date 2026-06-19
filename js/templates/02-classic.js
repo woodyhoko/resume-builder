@@ -49,7 +49,7 @@ registerTemplate({
       `<a href="${C.linkedinUrl}">${C.linkedin}</a><span class="dot">•</span>`+
       `<a href="${C.githubUrl}">${C.github}</a>`;
     const jobs = d.experience.map(j =>
-      `<div class="entry"><div class="entry-head"><div class="entry-title">${j.title}, <span class="entry-org">${j.company}</span></div><div class="entry-date">${j.date}</div></div><ul class="bullets">${H.bullets(j)}</ul></div>`).join("");
+      `<div class="entry" data-rb-drag="exp:${j.id}"><div class="entry-head"><div class="entry-title">${j.title}, <span class="entry-org">${j.company}</span></div><div class="entry-date">${j.date}</div></div><ul class="bullets">${H.bullets(j)}</ul></div>`).join("");
     const edu = d.education.map(e =>
       `<div class="edu-line"><div class="d">${e.degree} <span style="font-weight:600;color:var(--light);">· GPA ${e.gpa}</span></div><div class="s">${e.school}</div><div class="m">${e.date}</div></div>`).join("");
     const pubs = d.publications.map(p =>

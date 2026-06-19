@@ -7,10 +7,13 @@
 window.ResumeEditor = (function () {
   const store = window.ResumeStore;
   const llm = window.ResumeLLM;
-  let root, blocksEl, modelStatus, modelBar, toneSel, reqInput, busyEl;
+  let root, blocksEl, collEl, eduEl, skillsEl, modelStatus, modelBar, toneSel, reqInput, busyEl;
   let dragId = null;
+  let eduDrag = null, skillDrag = null;
 
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const decode = (s) => String(s == null ? "" : s).replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  const disp = (s) => esc(decode(s));   // for safe plain-text display of entity-bearing data
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 
   function init() {
@@ -51,9 +54,18 @@ window.ResumeEditor = (function () {
         </div>
         <input type="text" id="ed-req" placeholder="Extra instruction (e.g. emphasize on-device ML)" style="margin-top:8px;">
 
-        <h3>Experience blocks <span style="color:#5a6473;font-weight:400;text-transform:none;letter-spacing:0;">drag to reorder · toggle to include</span></h3>
+        <h3>Experience <span class="ed-sub">drag on the résumé to reorder · ✕ to hide</span></h3>
         <div id="ed-blocks"></div>
         <button class="ed-btn full" id="ed-add">+ Add experience block</button>
+
+        <h3>Collection <span class="ed-sub">hidden blocks — drag onto the résumé or click +</span></h3>
+        <div id="ed-collection"></div>
+
+        <h3>Education <span class="ed-sub">drag to reorder · toggle</span></h3>
+        <div id="ed-edu"></div>
+
+        <h3>Skills <span class="ed-sub">drag to reorder · toggle</span></h3>
+        <div id="ed-skills"></div>
 
         <h3>Layout</h3>
         <label class="row" style="cursor:pointer;"><input type="checkbox" id="ed-autofit" checked style="width:15px;height:15px;accent-color:#2563eb;"> &nbsp;Auto-fit content to one page</label>
@@ -63,6 +75,9 @@ window.ResumeEditor = (function () {
     document.body.appendChild(root);
 
     blocksEl = root.querySelector("#ed-blocks");
+    collEl = root.querySelector("#ed-collection");
+    eduEl = root.querySelector("#ed-edu");
+    skillsEl = root.querySelector("#ed-skills");
     modelStatus = root.querySelector("#ed-status");
     modelBar = root.querySelector("#ed-bar");
     toneSel = root.querySelector("#ed-tone");
@@ -192,9 +207,84 @@ window.ResumeEditor = (function () {
   // ---------------- Blocks UI + drag/drop ----------------
   function renderBlocks() {
     if (!blocksEl) return;
-    const exp = store.get().experience;
+    const s = store.get();
     blocksEl.innerHTML = "";
-    exp.forEach((e) => blocksEl.appendChild(blockEl(e)));
+    s.experience.filter((e) => e.include !== false).forEach((e) => blocksEl.appendChild(blockEl(e)));
+
+    // Collection: hidden experience blocks
+    const hidden = s.experience.filter((e) => e.include === false);
+    collEl.innerHTML = "";
+    if (!hidden.length) collEl.innerHTML = '<div class="coll-empty">Nothing hidden. Click ✕ on a résumé entry to stash it here.</div>';
+    hidden.forEach((e) => collEl.appendChild(collCard(e)));
+
+    // Education list
+    eduEl.innerHTML = "";
+    s.education.forEach((e, i) => eduEl.appendChild(eduRow(e, i)));
+
+    // Skills list
+    skillsEl.innerHTML = "";
+    Object.keys(s.skills).forEach((cat) => skillsEl.appendChild(skillRow(cat, s)));
+  }
+
+  // ---- Collection (hidden experience) ----
+  function collCard(e) {
+    const c = el("div", "coll-card");
+    c.draggable = true;
+    c.innerHTML = `<div class="ct">${disp(e.title)}</div><div class="cs">${disp([e.company, e.date].filter(Boolean).join(" · "))}</div><button class="cadd">+ Add to résumé</button>`;
+    c.querySelector(".cadd").addEventListener("click", () => store.update((s) => { const t = s.experience.find((x) => x.id === e.id); if (t) t.include = true; }));
+    c.addEventListener("dragstart", (ev) => { try { ev.dataTransfer.setData("text/plain", "collection:" + e.id); } catch (x) {} ev.dataTransfer.effectAllowed = "move"; });
+    return c;
+  }
+
+  // ---- Education rows (reorder + toggle) ----
+  function eduRow(e, idx) {
+    const b = el("div", "block" + (e.include === false ? " excluded" : ""));
+    b.draggable = true; b.dataset.idx = idx;
+    b.innerHTML = `<div class="bhead"><span class="grip">⠿</span>
+      <input type="checkbox" class="bx" ${e.include === false ? "" : "checked"}>
+      <div><div class="btitle">${disp(e.degree)}</div><div class="bsub">${disp([e.shortSchool || e.school, e.gpa ? "GPA " + e.gpa : ""].filter(Boolean).join(" · "))}</div></div></div>`;
+    b.querySelector(".bx").addEventListener("change", (ev) => store.update((s) => { s.education[idx].include = ev.target.checked; }));
+    b.addEventListener("dragstart", () => { eduDrag = idx; b.classList.add("dragging"); });
+    b.addEventListener("dragend", () => { eduDrag = null; b.classList.remove("dragging"); });
+    b.addEventListener("dragover", (ev) => { ev.preventDefault(); });
+    b.addEventListener("drop", (ev) => {
+      ev.preventDefault();
+      const below = ev.offsetY > b.offsetHeight / 2;
+      store.update((s) => { const arr = s.education; if (eduDrag == null) return; const [m] = arr.splice(eduDrag, 1); let ti = idx > eduDrag ? idx - 1 : idx; arr.splice(below ? ti + 1 : ti, 0, m); });
+    });
+    return b;
+  }
+
+  // ---- Skill category rows (reorder + hide) ----
+  function skillRow(cat, s) {
+    const hidden = (s.skillsHidden || []).indexOf(cat) >= 0;
+    const b = el("div", "block" + (hidden ? " excluded" : ""));
+    b.draggable = true; b.dataset.cat = cat;
+    b.innerHTML = `<div class="bhead"><span class="grip">⠿</span>
+      <input type="checkbox" class="bx" ${hidden ? "" : "checked"}>
+      <div><div class="btitle">${disp(cat)}</div><div class="bsub">${disp((s.skills[cat] || []).join(", ")).slice(0, 80)}</div></div></div>`;
+    b.querySelector(".bx").addEventListener("change", (ev) => store.update((st) => {
+      st.skillsHidden = st.skillsHidden || [];
+      const i = st.skillsHidden.indexOf(cat);
+      if (ev.target.checked && i >= 0) st.skillsHidden.splice(i, 1);
+      else if (!ev.target.checked && i < 0) st.skillsHidden.push(cat);
+    }));
+    b.addEventListener("dragstart", () => { skillDrag = cat; b.classList.add("dragging"); });
+    b.addEventListener("dragend", () => { skillDrag = null; b.classList.remove("dragging"); });
+    b.addEventListener("dragover", (ev) => ev.preventDefault());
+    b.addEventListener("drop", (ev) => {
+      ev.preventDefault();
+      const below = ev.offsetY > b.offsetHeight / 2;
+      store.update((st) => {
+        if (skillDrag == null || skillDrag === cat) return;
+        const keys = Object.keys(st.skills);
+        const from = keys.indexOf(skillDrag); keys.splice(from, 1);
+        let ti = keys.indexOf(cat); ti = below ? ti + 1 : ti;
+        keys.splice(ti, 0, skillDrag);
+        const ns = {}; keys.forEach((k) => ns[k] = st.skills[k]); st.skills = ns;
+      });
+    });
+    return b;
   }
 
   function blockEl(e) {
@@ -205,8 +295,8 @@ window.ResumeEditor = (function () {
         <span class="grip" title="Drag to reorder">⠿</span>
         <input type="checkbox" class="bx" ${e.include === false ? "" : "checked"} title="Include in résumé">
         <div>
-          <div class="btitle">${esc(e.title)}</div>
-          <div class="bsub">${esc([e.company, e.date].filter(Boolean).join(" · "))}</div>
+          <div class="btitle">${disp(e.title)}</div>
+          <div class="bsub">${disp([e.company, e.date].filter(Boolean).join(" · "))}</div>
         </div>
       </div>
       <div class="bactions">
@@ -242,12 +332,12 @@ window.ResumeEditor = (function () {
     const ed = el("div");
     ed.style.marginTop = "8px";
     ed.innerHTML = `
-      <input type="text" class="f-title" value="${esc(e.title)}" placeholder="Title" style="margin-bottom:6px;">
+      <input type="text" class="f-title" value="${disp(e.title)}" placeholder="Title" style="margin-bottom:6px;">
       <div class="row" style="margin-bottom:6px;">
-        <input type="text" class="f-co" value="${esc(e.company)}" placeholder="Company" style="flex:1;">
-        <input type="text" class="f-date" value="${esc(e.date)}" placeholder="Dates" style="width:96px;">
+        <input type="text" class="f-co" value="${disp(e.company)}" placeholder="Company" style="flex:1;">
+        <input type="text" class="f-date" value="${disp(e.date)}" placeholder="Dates" style="width:96px;">
       </div>
-      <textarea class="f-bul" placeholder="One bullet per line">${esc((e.bullets || []).join("\n"))}</textarea>
+      <textarea class="f-bul" placeholder="One bullet per line">${disp((e.bullets || []).map((x) => x.replace(/<\/?b>/g, "")).join("\n"))}</textarea>
       <div class="row" style="margin-top:6px;">
         <button class="mini" data-s="save">Save</button>
         <button class="mini" data-s="cancel">Cancel</button>

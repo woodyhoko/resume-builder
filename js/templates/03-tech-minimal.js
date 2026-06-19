@@ -49,7 +49,7 @@ registerTemplate({
     const C = d.contact;
     const km = {"Languages":"lang","ML Lifecycle":"ml","On-Device &amp; Web":"web","Domains":"domains"};
     const jobs = d.experience.map(j =>
-      `<div class="job"><div class="job-head"><div class="job-title">${j.title} · <span class="job-co">${j.company}</span></div><div class="job-date">${j.date}</div></div><ul class="bullets">${H.bullets(j)}</ul></div>`).join("");
+      `<div class="job" data-rb-drag="exp:${j.id}"><div class="job-head"><div class="job-title">${j.title} · <span class="job-co">${j.company}</span></div><div class="job-date">${j.date}</div></div><ul class="bullets">${H.bullets(j)}</ul></div>`).join("");
     const edu = d.education.map(e =>
       `<div class="edu"><div class="d">${e.degree}</div><div class="s">${e.shortSchool} · GPA ${e.gpa}</div><div class="m">${e.date}</div></div>`).join("");
     const skills = Object.entries(d.skills).map(([cat, arr]) =>

@@ -106,8 +106,29 @@ body.editor-open #preview{ padding-right:376px; }
 .block ul.bl{ margin:7px 0 0; padding-left:16px; }
 .block ul.bl li{ font-size:11.5px; color:#aeb6c4; line-height:1.4; margin-bottom:2px; }
 
+/* ===================== On-résumé Arrange mode ===================== */
+#stage.rb-arrange [data-rb-drag]{ position:relative; }
+#stage.rb-arrange [data-rb-drag]:hover{ outline:1.5px dashed #2563eb; outline-offset:3px; cursor:grab; border-radius:3px; }
+#stage.rb-arrange [data-rb-drag].rb-drag{ opacity:.35; }
+#stage.rb-arrange [data-rb-drag].rb-over{ box-shadow:0 -3px 0 #2563eb; }
+.rb-ctl{ position:absolute; top:-11px; right:0; display:none; gap:5px; align-items:center; z-index:60; }
+#stage.rb-arrange [data-rb-drag]:hover > .rb-ctl{ display:flex; }
+.rb-ctl .mv{ font:600 9px/1 Inter,sans-serif; background:#2563eb; color:#fff; border-radius:4px; padding:3px 6px; }
+.rb-ctl .rm{ font:700 9px/1 Inter,sans-serif; background:#dc2626; color:#fff; border:none; border-radius:4px; padding:3px 6px; cursor:pointer; }
+#stage.rb-arrange::after{ content:"Arrange mode — drag experience entries to reorder · ✕ to move to Collection"; position:fixed; bottom:14px; left:50%; transform:translateX(-50%); background:#2563eb; color:#fff; font:600 11.5px Inter,sans-serif; padding:6px 14px; border-radius:20px; z-index:905; }
+
+/* Collection (excluded blocks) in the editor drawer */
+.coll-card{ background:#0e1320; border:1px dashed #3a4250; border-radius:9px; padding:8px 10px; margin-bottom:8px; cursor:grab; }
+.coll-card .ct{ font-weight:600; font-size:12.5px; color:#cdd4e0; }
+.coll-card .cs{ font-size:11px; color:var(--tb-muted); }
+.coll-card .cadd{ margin-top:6px; font:600 11px Inter,sans-serif; background:#1b2230; color:#7be0a4; border:1px solid #1f7a45; border-radius:6px; padding:4px 8px; cursor:pointer; }
+.coll-empty{ font-size:11.5px; color:var(--tb-muted); font-style:italic; }
+.ed-sub{ font-size:10px; color:#5a6473; text-transform:none; letter-spacing:0; font-weight:400; }
+
 @media print{
   #toolbar, #hint, #fit-badge, #editor{ display:none !important; }
+  #stage.rb-arrange::after, .rb-ctl{ display:none !important; }
+  #stage.rb-arrange [data-rb-drag]{ outline:none !important; box-shadow:none !important; }
   #preview{ padding:0 !important; }
   html,body{ background:#fff !important; }
 }

@@ -15,6 +15,8 @@ window.ResumeStore = (function () {
   function withFlags(d) {
     (d.experience || []).forEach((e, i) => { if (e.include === undefined) e.include = true; if (e.id === undefined) e.id = "exp" + i + "_" + Math.abs(hash(e.title + e.company)); });
     (d.projects || []).forEach((p, i) => { if (p.include === undefined) p.include = true; if (p.id === undefined) p.id = "prj" + i + "_" + Math.abs(hash(p.name)); });
+    (d.education || []).forEach((e, i) => { if (e.include === undefined) e.include = true; if (e.id === undefined) e.id = "edu" + i + "_" + Math.abs(hash(e.degree + e.school)); });
+    if (!Array.isArray(d.skillsHidden)) d.skillsHidden = [];
     return d;
   }
   function hash(s) { let h = 0; s = String(s || ""); for (let i = 0; i < s.length; i++) { h = (h << 5) - h + s.charCodeAt(i) | 0; } return h; }
@@ -34,10 +36,17 @@ window.ResumeStore = (function () {
   return {
     get: () => state,
     /** RESUME-shaped object containing only the blocks the user kept, in order. */
-    view: () => Object.assign({}, state, {
-      experience: state.experience.filter((e) => e.include !== false),
-      projects: state.projects.filter((p) => p.include !== false)
-    }),
+    view: () => {
+      const hidden = state.skillsHidden || [];
+      const skills = {};
+      Object.keys(state.skills || {}).forEach((k) => { if (hidden.indexOf(k) < 0) skills[k] = state.skills[k]; });
+      return Object.assign({}, state, {
+        experience: state.experience.filter((e) => e.include !== false),
+        projects: state.projects.filter((p) => p.include !== false),
+        education: state.education.filter((e) => e.include !== false),
+        skills
+      });
+    },
     update: (fn) => { fn(state); save(); emit(); },
     set: (ns) => { state = withFlags(ns); save(); emit(); },
     reset: () => { state = defaults(); save(); emit(); },

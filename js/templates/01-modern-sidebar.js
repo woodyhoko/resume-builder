@@ -60,7 +60,7 @@ registerTemplate({
     const edu = d.education.map(e =>
       `<div class="edu-item"><div class="edu-deg">${e.degree}</div><div class="edu-school">${e.school}</div><div class="edu-meta">${e.date} · GPA ${e.gpa}</div></div>`).join("");
     const jobs = d.experience.map(j =>
-      `<div class="job"><div class="job-top"><div class="job-title">${j.title} · <span class="job-co">${j.company}</span></div><div class="job-date">${j.date}</div></div><ul class="bullets">${H.bullets(j)}</ul></div>`).join("");
+      `<div class="job" data-rb-drag="exp:${j.id}"><div class="job-top"><div class="job-title">${j.title} · <span class="job-co">${j.company}</span></div><div class="job-date">${j.date}</div></div><ul class="bullets">${H.bullets(j)}</ul></div>`).join("");
     const pubs = H.pubs(d, true).map(p =>
       `<div class="pub"><span class="t">${p.title}</span> — <span class="v">${p.venue}</span>${p.note?`, ${p.note}`:""}.</div>`).join("");
     const projs = d.projects.map(p =>
