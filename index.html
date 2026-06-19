@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resume Builder — Ho Ko</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- ===================== APP CHROME (always active) ===================== -->
+<style id="app-style">
+  :root{ --tb:#11141b; --tb-line:#262b35; --tb-ink:#e6e9ef; --tb-muted:#8b93a3; --tb-accent:#2563eb; }
+  *{box-sizing:border-box;}
+  #toolbar{
+    position:fixed;top:0;left:0;right:0;height:56px;z-index:1000;
+    background:var(--tb);border-bottom:1px solid var(--tb-line);
+    display:flex;align-items:center;gap:16px;padding:0 18px;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  #toolbar .brand{font-weight:800;font-size:15px;color:var(--tb-ink);letter-spacing:-.2px;white-space:nowrap;}
+  #toolbar .brand span{color:var(--tb-accent);}
+  #toolbar .group{display:flex;gap:6px;}
+  #toolbar .seg{
+    background:#1b1f28;border:1px solid var(--tb-line);color:var(--tb-muted);
+    font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;
+    transition:all .12s;
+  }
+  #toolbar .seg:hover{color:var(--tb-ink);border-color:#3a4250;}
+  #toolbar .seg.active{background:var(--tb-accent);color:#fff;border-color:var(--tb-accent);}
+  #toolbar .spacer{flex:1;}
+  #toolbar .btn{
+    font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:8px;cursor:pointer;white-space:nowrap;
+    border:1px solid var(--tb-line);background:#1b1f28;color:var(--tb-ink);transition:all .12s;
+  }
+  #toolbar .btn:hover{border-color:#3a4250;}
+  #toolbar .btn.primary{background:var(--tb-accent);border-color:var(--tb-accent);color:#fff;}
+  #toolbar .btn.primary:hover{filter:brightness(1.08);}
+  #toolbar .btn.on{background:#10331f;border-color:#1f7a45;color:#7be0a4;}
+  #preview{padding:78px 12px 36px;min-height:100vh;}
+  #hint{
+    position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:900;
+    background:rgba(17,20,27,.92);color:#aeb6c4;border:1px solid var(--tb-line);
+    font-family:'Inter',sans-serif;font-size:11.5px;padding:7px 14px;border-radius:20px;
+    box-shadow:0 6px 20px rgba(0,0,0,.3);pointer-events:none;
+  }
+  @media (max-width:760px){
+    #toolbar{flex-wrap:wrap;height:auto;padding:8px 12px;gap:8px;}
+    #preview{padding-top:108px;}
+  }
+  @media print{
+    #toolbar,#hint{display:none !important;}
+    #preview{padding:0 !important;}
+    html,body{background:#fff !important;}
+  }
+</style>
+
+<!-- ===================== DESIGN 1: MODERN SIDEBAR ===================== -->
+<style class="design-css" data-key="sidebar" media="not all">
+  html,body{background:#525659;margin:0;}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1c2331;line-height:1.5;font-size:10.2px;-webkit-font-smoothing:antialiased;}
+  .page{--ink:#1c2331;--muted:#5b6472;--line:#e2e6ec;--accent:#0f4c81;--accent-soft:#eaf1f8;--sidebar:#0f2740;--sidebar-ink:#dfe7f0;--sidebar-muted:#9fb2c8;
+    width:8.5in;min-height:11in;margin:14px auto;background:#fff;display:grid;grid-template-columns:2.55in 1fr;box-shadow:0 4px 24px rgba(0,0,0,.28);overflow:hidden;}
+  .sidebar{background:var(--sidebar);color:var(--sidebar-ink);padding:9mm 8mm;}
+  .name{font-size:25px;font-weight:800;line-height:1.08;letter-spacing:.3px;color:#fff;}
+  .role{margin-top:5px;font-size:11px;font-weight:600;color:#7fd0ff;letter-spacing:.6px;text-transform:uppercase;}
+  .sb-block{margin-top:22px;}
+  .sb-title{font-size:10px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:#7fd0ff;padding-bottom:5px;margin-bottom:9px;border-bottom:1px solid rgba(127,208,255,.28);}
+  .contact-row{display:flex;gap:8px;margin-bottom:7px;font-size:9.6px;color:var(--sidebar-ink);align-items:baseline;}
+  .contact-row .lbl{color:var(--sidebar-muted);min-width:14px;font-weight:600;}
+  .contact-row a{color:var(--sidebar-ink);text-decoration:none;word-break:break-all;}
+  .skill-cat{font-size:9.4px;font-weight:700;color:#fff;margin:10px 0 5px;}
+  .skill-cat:first-child{margin-top:0;}
+  .chips{display:flex;flex-wrap:wrap;gap:4px;}
+  .chip{background:rgba(127,208,255,.12);border:1px solid rgba(127,208,255,.25);color:#cfe6f7;border-radius:4px;padding:2px 6px;font-size:8.6px;font-weight:500;}
+  .edu-item{margin-bottom:11px;}
+  .edu-item:last-child{margin-bottom:0;}
+  .edu-deg{font-size:9.8px;font-weight:700;color:#fff;line-height:1.3;}
+  .edu-school{font-size:9px;color:var(--sidebar-muted);margin-top:1px;}
+  .edu-meta{font-size:8.6px;color:#7fd0ff;font-weight:600;margin-top:2px;}
+  .main{padding:9mm 11mm;}
+  .summary{font-size:10.4px;color:var(--muted);line-height:1.46;margin-bottom:9px;}
+  .summary strong{color:var(--ink);font-weight:600;}
+  .sec{margin-bottom:9px;}
+  .sec:last-child{margin-bottom:0;}
+  .sec-head{display:flex;align-items:center;gap:9px;margin-bottom:7px;}
+  .sec-head h2{font-size:12.5px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--accent);white-space:nowrap;}
+  .sec-head .bar{height:2px;background:var(--line);flex:1;border-radius:2px;}
+  .job{margin-bottom:6px;position:relative;padding-left:14px;}
+  .job:last-child{margin-bottom:0;}
+  .job::before{content:"";position:absolute;left:0;top:4px;width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  .job-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+  .job-title{font-size:11px;font-weight:700;color:var(--ink);}
+  .job-co{color:var(--accent);font-weight:700;}
+  .job-date{font-size:9px;font-weight:600;color:var(--muted);white-space:nowrap;}
+  .bullets{list-style:none;margin:3px 0 0;padding:0;}
+  .bullets li{font-size:9.5px;color:var(--muted);line-height:1.34;padding-left:11px;position:relative;margin-bottom:1px;}
+  .bullets li::before{content:"";position:absolute;left:0;top:5px;width:4px;height:4px;border-radius:50%;background:var(--accent);}
+  .bullets b{color:var(--ink);font-weight:600;}
+  .pub{font-size:9.6px;color:var(--muted);line-height:1.45;margin-bottom:5px;padding-left:14px;position:relative;}
+  .pub::before{content:"";position:absolute;left:0;top:6px;width:5px;height:5px;border-radius:1px;background:var(--accent);}
+  .pub .t{color:var(--ink);font-weight:600;font-style:italic;}
+  .pub .v{color:var(--accent);font-weight:600;}
+  .proj{margin-bottom:6px;padding-left:14px;position:relative;}
+  .proj::before{content:"";position:absolute;left:0;top:5px;width:5px;height:5px;border-radius:1px;background:var(--accent);}
+  .proj .pn{font-size:9.8px;font-weight:700;color:var(--ink);}
+  .proj .pd{font-size:9.4px;color:var(--muted);line-height:1.5;}
+  @media print{ @page{size:8.5in 11in;margin:0;} html,body{background:#fff;} .page{margin:0;box-shadow:none;width:8.5in;min-height:10.85in;} *{-webkit-print-color-adjust:exact;print-color-adjust:exact;} }
+</style>
+
+<!-- ===================== DESIGN 2: CLASSIC PROFESSIONAL ===================== -->
+<style class="design-css" data-key="classic" media="not all">
+  html,body{background:#525659;margin:0;}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1a1a;font-size:10px;line-height:1.5;-webkit-font-smoothing:antialiased;}
+  .page{--ink:#1a1a1a;--muted:#4a4a4a;--light:#6b6b6b;--rule:#222;--hair:#cfcfcf;--accent:#7a1f2b;
+    width:8.5in;min-height:11in;margin:14px auto;background:#fff;padding:0.32in 0.6in;box-shadow:0 4px 24px rgba(0,0,0,.28);}
+  header{text-align:center;border-bottom:2.2px solid var(--rule);padding-bottom:7px;margin-bottom:3px;}
+  .name{font-family:'Source Serif 4',Georgia,serif;font-size:28px;font-weight:700;letter-spacing:1.2px;color:var(--ink);}
+  .role{font-size:11px;font-weight:600;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin-top:4px;}
+  .contact{margin-top:8px;font-size:9.4px;color:var(--muted);display:flex;justify-content:center;flex-wrap:wrap;gap:4px 0;}
+  .contact a{color:var(--muted);text-decoration:none;}
+  .contact .dot{margin:0 8px;color:var(--hair);}
+  section{margin-top:5px;}
+  h2{font-family:'Source Serif 4',Georgia,serif;font-size:12px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;color:var(--ink);border-bottom:1px solid var(--hair);padding-bottom:2px;margin-bottom:5px;}
+  .summary{font-size:10px;color:var(--muted);line-height:1.42;text-align:justify;}
+  .summary strong{color:var(--ink);font-weight:600;}
+  .entry{margin-bottom:4px;}
+  .entry:last-child{margin-bottom:0;}
+  .entry-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;}
+  .entry-title{font-size:10.6px;font-weight:700;color:var(--ink);}
+  .entry-org{font-weight:600;color:var(--accent);}
+  .entry-date{font-size:9.2px;font-weight:600;color:var(--light);white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .bullets{list-style:none;margin:2px 0 0;padding:0;}
+  .bullets li{font-size:9.5px;color:var(--muted);line-height:1.34;padding-left:13px;position:relative;margin-bottom:1px;}
+  .bullets li::before{content:"\2013";position:absolute;left:2px;top:0;color:var(--accent);font-weight:700;}
+  .bullets b{color:var(--ink);font-weight:600;}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:3px 26px;}
+  .edu-line .d{font-size:10.2px;font-weight:700;color:var(--ink);}
+  .edu-line .s{font-size:9.4px;color:var(--muted);}
+  .edu-line .m{font-size:9px;color:var(--light);font-weight:600;}
+  .edu-line{margin-bottom:4px;}
+  ul.pub{list-style:none;margin:0;padding:0;}
+  ul.pub li{font-size:9.5px;color:var(--muted);line-height:1.44;padding-left:14px;position:relative;margin-bottom:2px;}
+  ul.pub li::before{content:"\25B8";position:absolute;left:0;color:var(--accent);font-size:8px;top:1px;}
+  ul.pub .t{color:var(--ink);font-weight:600;}
+  ul.pub .v{font-weight:600;color:var(--ink);}
+  .skills-grid{font-size:9.5px;color:var(--muted);line-height:1.55;}
+  .skills-grid .k{font-weight:700;color:var(--ink);}
+  @media print{ @page{size:8.5in 11in;margin:0;} html,body{background:#fff;} .page{margin:0;box-shadow:none;min-height:auto;} *{-webkit-print-color-adjust:exact;print-color-adjust:exact;} }
+</style>
+
+<!-- ===================== DESIGN 3: TECH MINIMAL ===================== -->
+<style class="design-css" data-key="tech" media="not all">
+  html,body{background:#525659;margin:0;}
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#3a4250;font-size:10.3px;line-height:1.5;-webkit-font-smoothing:antialiased;}
+  .mono{font-family:'JetBrains Mono',ui-monospace,'Cascadia Code',Consolas,monospace;}
+  .page{--ink:#0d1117;--body:#3a4250;--muted:#6a7280;--hair:#e7eaef;--accent:#0aa37f;--accent-ink:#06795e;--soft:#edf8f4;
+    width:8.5in;min-height:11in;margin:14px auto;background:#fff;padding:0.4in 0.6in;box-shadow:0 4px 24px rgba(0,0,0,.28);}
+  header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--ink);padding-bottom:10px;}
+  .name{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:28px;font-weight:700;letter-spacing:-1px;color:var(--ink);line-height:1;}
+  .role{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:500;color:var(--accent-ink);margin-top:7px;letter-spacing:.3px;}
+  .role::before{content:"// ";color:var(--muted);}
+  .contact{text-align:right;font-family:'JetBrains Mono',monospace;font-size:8.7px;color:var(--muted);line-height:1.7;}
+  .contact a{color:var(--body);text-decoration:none;}
+  .contact .k{color:var(--accent);}
+  .summary{font-size:10.3px;color:var(--body);line-height:1.52;margin:8px 0 4px;}
+  .summary strong{color:var(--ink);font-weight:600;}
+  section{margin-top:8px;}
+  h2{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--ink);display:flex;align-items:center;gap:9px;margin-bottom:11px;}
+  h2::before{content:"";display:inline-block;width:9px;height:9px;background:var(--accent);border-radius:2px;transform:rotate(45deg);}
+  h2 .ln{flex:1;height:1px;background:var(--hair);}
+  .job{margin-bottom:6px;}
+  .job:last-child{margin-bottom:0;}
+  .job-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;}
+  .job-title{font-size:11px;font-weight:600;color:var(--ink);}
+  .job-co{color:var(--accent-ink);font-weight:700;}
+  .job-date{font-family:'JetBrains Mono',monospace;font-size:8.7px;font-weight:500;color:var(--muted);white-space:nowrap;background:var(--soft);padding:1px 7px;border-radius:4px;}
+  .bullets{list-style:none;margin:3px 0 0;padding:0;}
+  .bullets li{font-size:9.5px;color:var(--muted);line-height:1.34;padding-left:13px;position:relative;margin-bottom:1px;}
+  .bullets li::before{content:"\25B9";position:absolute;left:0;top:0;color:var(--accent);font-weight:700;}
+  .bullets b{color:var(--ink);font-weight:600;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px 22px;}
+  .edu{border-left:2px solid var(--accent);padding-left:9px;margin-bottom:7px;}
+  .edu:last-child{margin-bottom:0;}
+  .edu .d{font-size:10px;font-weight:600;color:var(--ink);}
+  .edu .s{font-size:9.2px;color:var(--muted);margin-top:1px;}
+  .edu .m{font-family:'JetBrains Mono',monospace;font-size:8.6px;color:var(--accent-ink);font-weight:500;margin-top:2px;}
+  .skill-row{display:flex;gap:9px;margin-bottom:6px;align-items:baseline;}
+  .skill-row .k{font-family:'JetBrains Mono',monospace;font-size:8.7px;color:var(--accent-ink);font-weight:600;min-width:54px;text-align:right;}
+  .skill-row .v{font-size:9.5px;color:var(--body);line-height:1.5;}
+  .pub{font-size:9.6px;color:var(--muted);line-height:1.52;margin-bottom:6px;padding-left:16px;position:relative;}
+  .pub::before{content:"\203A";position:absolute;left:2px;top:0;color:var(--accent);font-weight:700;font-size:11px;}
+  .pub .t{color:var(--ink);font-weight:600;}
+  .pub .v{font-family:'JetBrains Mono',monospace;font-size:8.6px;color:var(--accent-ink);font-weight:600;}
+  @media print{ @page{size:8.5in 11in;margin:0;} html,body{background:#fff;} .page{margin:0;box-shadow:none;min-height:auto;} *{-webkit-print-color-adjust:exact;print-color-adjust:exact;} }
+</style>
+</head>
+<body>
+  <div id="toolbar">
+    <div class="brand">Resume<span>Builder</span></div>
+    <div class="group" id="design-tabs">
+      <button class="seg" data-d="sidebar">Modern Sidebar</button>
+      <button class="seg" data-d="classic">Classic</button>
+      <button class="seg" data-d="tech">Tech Minimal</button>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" id="btn-edit">Edit text</button>
+    <button class="btn" id="btn-download">Download PDF</button>
+    <button class="btn primary" id="btn-print">Save as PDF</button>
+  </div>
+
+  <div id="preview"></div>
+  <div id="hint">Tip: "Save as PDF" gives the crispest file — choose paper size <b>Letter</b>, margins <b>None</b>, and enable <b>Background graphics</b>.</div>
+
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js"></script>
+<script>
+/* ============================ RESUME DATA ============================ */
+const RESUME = {
+  name: "Ho Ko",
+  title: "AI/ML Software Engineer",
+  contact: {
+    email: "woodyhoko@gmail.com",
+    location: "San Francisco Bay Area, CA",
+    website: "hoko.xyz", websiteUrl: "https://hoko.xyz",
+    linkedin: "linkedin.com/in/hoko", linkedinUrl: "https://linkedin.com/in/hoko",
+    github: "github.com/woodyhoko", githubUrl: "https://github.com/woodyhoko"
+  },
+  summary: "AI/ML Software Engineer with cross-domain experience spanning astronomy, weather forecasting, economics, healthcare, NLP, and computer vision. Works across the full <strong>model lifecycle</strong> — training and distilling deep models, architecting highly efficient inference engines, and building scalable, high-throughput serving — and brings that intelligence <strong>on-device</strong> through WebGPU, Three.js, and local LLMs in privacy-preserving systems that have reached <strong>1B+ users</strong>.",
+  experience: [
+    { title:"Machine Learning Engineer", company:"Google", date:"2026–Present", bullets:[
+      "Build <b>knowledge-grounded retrieval &amp; ranking models</b> on Google Lens that power AI Mode in Google Search and AI Overviews at Search scale.",
+      "<b>Distill Gemini</b> into highly compressed models that hold near-equal quality while meeting the Lens stack's latency, scalability, and multimodal requirements." ]},
+    { title:"Software Engineer", company:"Google", date:"2023–2026", bullets:[
+      "Core contributor to the <b>LiteRT LM inference engine</b>, running LLMs privately and offline across Windows, macOS, Linux, and Android — including NPU acceleration.",
+      "Enabled Gemma multimodality (vision + audio + text) and Gemini Nano on-device; helped ship <b>Chrome Built-in AI and Google AI Core, reaching 1B+ users</b>.",
+      "Shipped the <b>Google AI Edge Gallery</b> app on Android and iOS." ]},
+    { title:"Research Collaborator", company:"Google DeepMind", date:"2024–2025", bullets:[
+      "Designed <b>Sparse RAG (ICLR 2025)</b>, a sparse decoding paradigm that encodes retrieved docs in parallel and attends only to the most relevant caches via learned control tokens.",
+      "Cut long-range attention latency while <b>improving generation quality across 4 retrieval benchmarks</b>." ]},
+    { title:"Research Collaborator", company:"Google Health &amp; Fitbit", date:"2024–2025", bullets:[
+      "Built and evaluated ML models <b>detecting hypertension risk from raw wrist PPG</b> passively collected on a consumer smartwatch (medRxiv), enabling non-invasive screening at population scale." ]},
+    { title:"Software Engineer", company:"MyCareLinq", date:"2023", bullets:[
+      "Built <b>NLP pipelines and a home-health-care knowledge graph</b> from unstructured health documentation.",
+      "Integrated LLMs powering caregiving assistants that surface contextual recommendations and care-plan summaries." ]},
+    { title:"Software Engineer Intern", company:"Google", date:"2022", bullets:[
+      "Built a TFLite tensor extractor + metadata-writer with classification rules at <b>100% coverage of common GenAI task libraries</b> (LiteRT Task Library).",
+      "Integrated a <b>C++ code generator</b> compiling optimized inference pipelines for arbitrary TFLite files." ]},
+    { title:"Research Assistant", company:"Caltech (SURF)", date:"2018", bullets:[
+      "Analyzed transient imaging from the Zwicky Transient Facility; <b>co-authored a Type IIb supernova study in ApJL (878:L5)</b> and simulated double-peak light-curve models." ]}
+  ],
+  education: [
+    { degree:"M.S. Computer Science", school:"University of Southern California — AI &amp; ML specialization", shortSchool:"USC — AI &amp; ML", date:"2021–2023", gpa:"4.0/4.0" },
+    { degree:"M.S. Electrical &amp; Computer Eng.", school:"University of Waterloo — Machine Learning &amp; AI", shortSchool:"Waterloo — ML &amp; AI", date:"2020–2021", gpa:"3.9/4.0" },
+    { degree:"B.S. Computer Science", school:"National Central University, Taiwan", shortSchool:"NCU, Taiwan", date:"2016–2020", gpa:"3.8/4.0" }
+  ],
+  skills: {
+    "Languages": ["Python","C/C++","Swift","Java","Kotlin","JavaScript","x86 Assembly","MATLAB"],
+    "ML Lifecycle": ["Model Training","Distillation","Quantization &amp; Compression","Inference Engines","On-Device Deployment","Scalable Serving"],
+    "On-Device &amp; Web": ["WebGPU","Three.js","Transformers.js","MediaPipe","WebRTC","Local LLMs (Gemma, LFM)"],
+    "Domains": ["NLP","Computer Vision","Healthcare","Astronomy","Weather Forecasting","Economics"]
+  },
+  publications: [
+    { title:"Accelerating Inference of Retrieval-Augmented Generation via Sparse Context Selection", venue:"ICLR 2025", note:"Google DeepMind", core:true },
+    { title:"Opportunistic Hypertension Detection from Wearable PPG", venue:"medRxiv 2025", note:"Google Health &amp; Fitbit", core:true },
+    { title:"Forecasting of Solar Power Generation using Real-time Meteorological Information", venue:"2020", note:"", core:false },
+    { title:"A Type IIb Supernova (ZTF18aalrxas)", venue:"ApJL 878:L5", note:"2019", core:true },
+    { title:"Real-world WebAssembly Performance for ML", venue:"ACM IMC 2023", note:"", core:true }
+  ],
+  projects: [
+    { name:"AI Mesh", desc:"P2P network of on-device AI agents over WebRTC; each browser tab runs a local LLM + MCP knowledge base and gossips queries across the mesh." },
+    { name:"The Match Maker", desc:"Webcam multiplayer game running Gemma 3n fully client-side via WebGPU at ~15 tok/s with MediaPipe face mesh." },
+    { name:"Tetris AI in x86 Assembly", desc:"Self-learning heuristic AI in ~2,000 lines of hand-written x86, averaging 50,000 cleared lines." }
+  ]
+};
+
+/* ============================ RENDERERS ============================ */
+const C = RESUME.contact;
+
+function render_sidebar(d){
+  const chips = (arr)=>arr.map(s=>`<span class="chip">${s}</span>`).join("");
+  const skillBlocks = Object.entries(d.skills).map(([cat,arr])=>
+    `<div class="skill-cat">${cat}</div><div class="chips">${chips(arr)}</div>`).join("");
+  const edu = d.education.map(e=>
+    `<div class="edu-item"><div class="edu-deg">${e.degree}</div><div class="edu-school">${e.school}</div><div class="edu-meta">${e.date} · GPA ${e.gpa}</div></div>`).join("");
+  const jobs = d.experience.map(j=>
+    `<div class="job"><div class="job-top"><div class="job-title">${j.title} · <span class="job-co">${j.company}</span></div><div class="job-date">${j.date}</div></div>
+      <ul class="bullets">${j.bullets.map(b=>`<li>${b}</li>`).join("")}</ul></div>`).join("");
+  const pubs = d.publications.filter(p=>p.core).map(p=>
+    `<div class="pub"><span class="t">${p.title}</span> — <span class="v">${p.venue}</span>${p.note?`, ${p.note}`:""}.</div>`).join("");
+  const projs = d.projects.map(p=>
+    `<div class="proj"><span class="pn">${p.name}</span> — <span class="pd">${p.desc}</span></div>`).join("");
+  return `<div class="page">
+    <aside class="sidebar">
+      <div class="name">${d.name}</div>
+      <div class="role">${d.title}</div>
+      <div class="sb-block"><div class="sb-title">Contact</div>
+        <div class="contact-row"><span class="lbl">✉</span><a href="mailto:${C.email}">${C.email}</a></div>
+        <div class="contact-row"><span class="lbl">⌖</span><span>${C.location}</span></div>
+        <div class="contact-row"><span class="lbl">⊕</span><a href="${C.websiteUrl}">${C.website}</a></div>
+        <div class="contact-row"><span class="lbl">in</span><a href="${C.linkedinUrl}">${C.linkedin}</a></div>
+        <div class="contact-row"><span class="lbl">gh</span><a href="${C.githubUrl}">${C.github}</a></div>
+      </div>
+      <div class="sb-block"><div class="sb-title">Skills</div>${skillBlocks}</div>
+      <div class="sb-block"><div class="sb-title">Education</div>${edu}</div>
+    </aside>
+    <main class="main">
+      <p class="summary">${d.summary}</p>
+      <section class="sec"><div class="sec-head"><h2>Experience</h2><div class="bar"></div></div>${jobs}</section>
+      <section class="sec"><div class="sec-head"><h2>Selected Publications</h2><div class="bar"></div></div>${pubs}</section>
+      <section class="sec"><div class="sec-head"><h2>Selected Projects</h2><div class="bar"></div></div>${projs}</section>
+    </main>
+  </div>`;
+}
+
+function render_classic(d){
+  const contact = `<a href="mailto:${C.email}">${C.email}</a><span class="dot">•</span>`+
+    `<span>${C.location}</span><span class="dot">•</span>`+
+    `<a href="${C.websiteUrl}">${C.website}</a><span class="dot">•</span>`+
+    `<a href="${C.linkedinUrl}">${C.linkedin}</a><span class="dot">•</span>`+
+    `<a href="${C.githubUrl}">${C.github}</a>`;
+  const jobs = d.experience.map(j=>
+    `<div class="entry"><div class="entry-head"><div class="entry-title">${j.title}, <span class="entry-org">${j.company}</span></div><div class="entry-date">${j.date}</div></div>
+      <ul class="bullets">${j.bullets.map(b=>`<li>${b}</li>`).join("")}</ul></div>`).join("");
+  const edu = d.education.map(e=>
+    `<div class="edu-line"><div class="d">${e.degree} <span style="font-weight:600;color:var(--light);">· GPA ${e.gpa}</span></div><div class="s">${e.school}</div><div class="m">${e.date}</div></div>`).join("");
+  const pubs = d.publications.map(p=>
+    `<li><span class="t">${p.title}</span> — <span class="v">${p.venue}</span>${p.note?` (${p.note})`:""}.</li>`).join("");
+  const skills = Object.entries(d.skills).map(([cat,arr])=>
+    `<div><span class="k">${cat}:</span> ${arr.join(", ")}</div>`).join("");
+  return `<div class="page">
+    <header><div class="name">${d.name}</div><div class="role">${d.title.replace("AI/ML","AI / ML")}</div><div class="contact">${contact}</div></header>
+    <section><h2>Summary</h2><p class="summary">${d.summary}</p></section>
+    <section><h2>Professional Experience</h2>${jobs}</section>
+    <section><h2>Education</h2><div class="two-col">${edu}</div></section>
+    <section><h2>Selected Publications</h2><ul class="pub">${pubs}</ul></section>
+    <section><h2>Technical Skills</h2><div class="skills-grid">${skills}</div></section>
+  </div>`;
+}
+
+function render_tech(d){
+  const km = {"Languages":"lang","ML Lifecycle":"ml","On-Device &amp; Web":"web","Domains":"domains"};
+  const jobs = d.experience.map(j=>
+    `<div class="job"><div class="job-head"><div class="job-title">${j.title} · <span class="job-co">${j.company}</span></div><div class="job-date">${j.date}</div></div>
+      <ul class="bullets">${j.bullets.map(b=>`<li>${b}</li>`).join("")}</ul></div>`).join("");
+  const edu = d.education.map(e=>
+    `<div class="edu"><div class="d">${e.degree}</div><div class="s">${e.shortSchool} · GPA ${e.gpa}</div><div class="m">${e.date}</div></div>`).join("");
+  const skills = Object.entries(d.skills).map(([cat,arr])=>
+    `<div class="skill-row"><div class="k">${km[cat]||cat}</div><div class="v">${arr.join(", ")}</div></div>`).join("");
+  const pubs = d.publications.filter(p=>p.core).map(p=>
+    `<div class="pub"><span class="t">${p.title}</span> — <span class="v">${p.venue}</span>${p.note?`, ${p.note}`:""}.</div>`).join("");
+  return `<div class="page">
+    <header><div><div class="name">${d.name}</div><div class="role">${d.title}</div></div>
+      <div class="contact">
+        <div><span class="k">email</span> <a href="mailto:${C.email}">${C.email}</a></div>
+        <div><span class="k">loc&nbsp;&nbsp;</span> ${C.location}</div>
+        <div><span class="k">web&nbsp;&nbsp;</span> <a href="${C.websiteUrl}">${C.website}</a></div>
+        <div><span class="k">li&nbsp;&nbsp;&nbsp;</span> <a href="${C.linkedinUrl}">${C.linkedin}</a></div>
+        <div><span class="k">git&nbsp;&nbsp;</span> <a href="${C.githubUrl}">${C.github}</a></div>
+      </div>
+    </header>
+    <p class="summary">${d.summary}</p>
+    <section><h2>Experience<span class="ln"></span></h2>${jobs}</section>
+    <div class="grid2">
+      <section><h2>Education<span class="ln"></span></h2>${edu}</section>
+      <section><h2>Skills<span class="ln"></span></h2>${skills}</section>
+    </div>
+    <section><h2>Selected Publications<span class="ln"></span></h2>${pubs}</section>
+  </div>`;
+}
+
+const DESIGNS = {
+  sidebar: { label:"Modern Sidebar", render:render_sidebar, file:"Ho-Ko-Resume-Modern-Sidebar" },
+  classic: { label:"Classic Professional", render:render_classic, file:"Ho-Ko-Resume-Classic-Professional" },
+  tech:    { label:"Tech Minimal", render:render_tech, file:"Ho-Ko-Resume-Tech-Minimal" }
+};
+
+/* ============================ APP LOGIC ============================ */
+let current = "sidebar";
+let editing = false;
+
+function applyDesign(key){
+  current = key;
+  document.querySelectorAll("style.design-css").forEach(s=>{
+    s.media = (s.dataset.key === key) ? "all" : "not all";
+  });
+  document.getElementById("preview").innerHTML = DESIGNS[key].render(RESUME);
+  document.querySelectorAll("#design-tabs .seg").forEach(b=>b.classList.toggle("active", b.dataset.d===key));
+  if(editing) setEditable(true);
+  try{ history.replaceState(null,"", "?d="+key); }catch(e){}
+}
+
+function setEditable(on){
+  editing = on;
+  const page = document.querySelector("#preview .page");
+  if(page){ page.contentEditable = on ? "true" : "false"; page.style.outline = on ? "2px dashed #2563eb" : "none"; }
+  const btn = document.getElementById("btn-edit");
+  btn.classList.toggle("on", on);
+  btn.textContent = on ? "Editing ✓" : "Edit text";
+}
+
+document.getElementById("design-tabs").addEventListener("click", e=>{
+  const b = e.target.closest(".seg"); if(b) applyDesign(b.dataset.d);
+});
+document.getElementById("btn-edit").addEventListener("click", ()=> setEditable(!editing));
+document.getElementById("btn-print").addEventListener("click", ()=>{ setEditable(false); window.print(); });
+document.getElementById("btn-download").addEventListener("click", ()=>{
+  setEditable(false);
+  const page = document.querySelector("#preview .page");
+  if(!page || !window.html2pdf){ window.print(); return; }
+  html2pdf().set({
+    margin:0,
+    filename: DESIGNS[current].file + ".pdf",
+    image:{ type:"jpeg", quality:0.98 },
+    html2canvas:{ scale:3, useCORS:true, backgroundColor:"#ffffff" },
+    jsPDF:{ unit:"in", format:"letter", orientation:"portrait" },
+    pagebreak:{ mode:["css","legacy"] }
+  }).from(page).save();
+});
+
+// initial design from ?d= param
+const params = new URLSearchParams(location.search);
+applyDesign(DESIGNS[params.get("d")] ? params.get("d") : "sidebar");
+</script>
+</body>
+</html>
