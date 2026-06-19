@@ -4,7 +4,7 @@ A single-page web app that renders my résumé in three professionally-designed,
 print-ready layouts and exports a pixel-perfect **US Letter** PDF — entirely in the
 browser, no backend.
 
-**Live:** https://woodyhoko.github.io/resume-builder/
+**Live:** https://space.hoko.xyz/resume-builder/
 
 ## Designs
 
