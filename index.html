@@ -32,8 +32,10 @@
   <div id="fit-badge"></div>
   <div id="hint">Tip: <b>Save as PDF</b> is sharpest — choose paper <b>Letter</b>, margins <b>None</b>, enable <b>Background graphics</b>.</div>
 
-  <!-- PDF export library -->
-  <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js"></script>
+  <!-- PDF export: html2canvas (raster capture) + jsPDF (assemble), used directly
+       so the output is a single, exactly-Letter, non-empty page. -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
 
   <!-- Data + state + on-device LLM + registry -->
   <script src="js/data.js"></script>

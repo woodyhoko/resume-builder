@@ -56,8 +56,8 @@ window.ResumeEditor = (function () {
         <button class="ed-btn full" id="ed-add">+ Add experience block</button>
 
         <h3>Layout</h3>
-        <label class="row" style="cursor:pointer;"><input type="checkbox" id="ed-autofit" style="width:15px;height:15px;accent-color:#2563eb;"> &nbsp;Auto-fit content to one page</label>
-        <div class="hintline">When on, oversized content is scaled down so it always exports as a single page.</div>
+        <label class="row" style="cursor:pointer;"><input type="checkbox" id="ed-autofit" checked style="width:15px;height:15px;accent-color:#2563eb;"> &nbsp;Auto-fit content to one page</label>
+        <div class="hintline">Scales the type up to fill a sparse page, or down to rescue an overflowing one — always one perfect page.</div>
         <div style="height:24px;"></div>
       </div>`;
     document.body.appendChild(root);

@@ -27,35 +27,57 @@
   const byKey   = (key) => TPLS.find(t => t.key === key) || TPLS[0];
 
   const DATAVIEW = () => (window.ResumeStore ? window.ResumeStore.view() : DATA);
+  let baseCSS = "";
+  const PAGE_PX = 1056;        // 11in @ 96dpi
+  const FIT_TARGET = 1038;     // aim just under a full page for safety
 
   function apply(key) {
     const t = byKey(key || current);
     current = t.key;
-    styleEl.textContent = t.css;
+    baseCSS = t.css;
+    styleEl.textContent = baseCSS;
     stage.innerHTML = t.render(DATAVIEW(), H);
     select.value = t.key;
     descEl.textContent = t.description || "";
     if (editing) setEdit(true);
-    requestAnimationFrame(() => { applyAutoFit(); checkFit(); });
+    requestAnimationFrame(() => { fitToPage(); checkFit(); });
     try { history.replaceState(null, "", "?t=" + t.key); } catch (e) {}
   }
 
-  // Auto-fit: when enabled and content overflows one page, scale the page down
-  // (uniformly, top-anchored) so the preview — and the export — stay one page.
-  function applyAutoFit() {
+  // Scale every px length in a stylesheet (fonts, margins, gaps, borders…) by f.
+  // Leaves in/mm units (page box, column widths) untouched so the sheet only
+  // grows/shrinks the *type and rhythm*, keeping the page exactly US Letter.
+  function scalePx(css, f) {
+    if (Math.abs(f - 1) < 0.004) return css;
+    return css.replace(/(-?\d*\.?\d+)px/g, (m, n) => (parseFloat(n) * f).toFixed(2) + "px");
+  }
+
+  function trueContentHeight(page) {
+    const prev = page.style.minHeight;
+    page.style.minHeight = "0";
+    const h = page.scrollHeight;
+    page.style.minHeight = prev;
+    return h;
+  }
+
+  // Dynamic auto-fit: scale the template's type/rhythm UP to fill a sparse page,
+  // or DOWN to rescue an overflowing one — so every résumé fills exactly one page.
+  function fitToPage() {
     const page = stage.querySelector(".page");
     if (!page) return;
-    page.style.transform = ""; page.style.transformOrigin = "";
-    if (!(window.RBApp && window.RBApp.autoFit)) return;
-    const prevMin = page.style.minHeight;
-    page.style.minHeight = "0";
-    const contentH = page.scrollHeight;
-    page.style.minHeight = prevMin;
-    if (contentH > 1056) {
-      const s = Math.max(0.6, 1056 / contentH);
-      page.style.transformOrigin = "top center";
-      page.style.transform = "scale(" + s.toFixed(4) + ")";
+    styleEl.textContent = baseCSS;
+    window.RBApp.fitScale = 1;
+    if (!window.RBApp.autoFit) return;
+    let f = 1;
+    for (let i = 0; i < 4; i++) {
+      const contentH = trueContentHeight(page);
+      if (!contentH) break;
+      const next = Math.max(0.78, Math.min(1.22, f * (FIT_TARGET / contentH)));
+      if (Math.abs(next - f) < 0.008) { f = next; break; }
+      f = next;
+      styleEl.textContent = scalePx(baseCSS, f);
     }
+    window.RBApp.fitScale = f;
   }
 
   function setEdit(on) {
@@ -93,49 +115,53 @@
     window.print();
   }
 
+  // Render the current page to a single canvas (auto-fit already applied to the
+  // live DOM), returning { canvas }. Captures the on-screen element directly —
+  // off-screen clones render blank in html2canvas.
+  async function renderCanvas() {
+    const page = stage.querySelector(".page");
+    if (!page || !window.html2canvas) return null;
+    if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
+    const saved = { margin: page.style.margin, shadow: page.style.boxShadow, minH: page.style.minHeight };
+    page.style.margin = "0"; page.style.boxShadow = "none"; page.style.minHeight = "11in";
+    try {
+      return await window.html2canvas(page, {
+        scale: 3, useCORS: true, backgroundColor: "#ffffff",
+        windowWidth: 816, width: 816, scrollX: 0, scrollY: -window.scrollY
+      });
+    } finally {
+      page.style.margin = saved.margin; page.style.boxShadow = saved.shadow; page.style.minHeight = saved.minH;
+    }
+  }
+
+  // Build a single-page US Letter jsPDF from the canvas (fit to width; if the
+  // capture is taller than the page, fit to height instead — always ONE page).
+  function canvasToLetterPdf(canvas) {
+    const JsPDF = window.jspdf && window.jspdf.jsPDF;
+    if (!JsPDF) return null;
+    const pdf = new JsPDF({ unit: "in", format: "letter", orientation: "portrait", compress: true });
+    const PW = 8.5, PH = 11, cw = canvas.width, ch = canvas.height;
+    let w = PW, h = ch / cw * PW;
+    if (h > PH + 0.01) { h = PH; w = cw / ch * PH; }
+    const x = (PW - w) / 2, y = 0;
+    pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", x, y, w, h, undefined, "FAST");
+    return pdf;
+  }
+
   async function downloadPDF() {
     setEdit(false);
-    const page = stage.querySelector(".page");
-    if (!page || !window.html2pdf) { return savePDF(); }
-    if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
     const btn = document.getElementById("btn-download");
     const label = btn.textContent; btn.textContent = "Rendering…"; btn.disabled = true;
-
-    // Capture the on-screen page directly (html2canvas renders off-screen clones
-    // blank). Strip the margin/shadow so the box is exactly the 8.5×11in
-    // min-height floor. If the user's content overflows one page, temporarily
-    // shrink the page's type scale so it fits, then restore.
-    const saved = {
-      margin: page.style.margin, shadow: page.style.boxShadow,
-      minH: page.style.minHeight, transform: page.style.transform,
-      tOrigin: page.style.transformOrigin, fs: page.style.fontSize, zoom: page.style.zoom
-    };
-    page.style.margin = "0"; page.style.boxShadow = "none"; page.style.transform = "";
-
-    // Measure true content; if > one page, scale type down via zoom (reflows, and
-    // html2canvas honors it when applied to the captured element itself here).
-    page.style.minHeight = "0";
-    const contentH = page.scrollHeight;
-    const s = Math.min(1, 1056 / Math.max(contentH, 1));
-    if (s < 1) { page.style.zoom = s; }
-    page.style.minHeight = (s < 1 ? Math.round(1056 / s) : 1056) + "px";
-
     try {
-      await window.html2pdf().set({
-        margin: 0,
-        filename: "Ho-Ko-Resume-" + current + ".pdf",
-        image: { type: "jpeg", quality: 0.98 },
-        html2canvas: { scale: 3, useCORS: true, backgroundColor: "#ffffff", windowWidth: 816 },
-        jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
-        pagebreak: { mode: ["avoid-all"] }
-      }).from(page).save();
+      const canvas = await renderCanvas();
+      const pdf = canvas && canvasToLetterPdf(canvas);
+      if (!pdf) { return savePDF(); }
+      pdf.save("Ho-Ko-Resume-" + current + ".pdf");
     } catch (e) {
       console.error("Download failed, falling back to print:", e);
       savePDF();
     } finally {
-      page.style.margin = saved.margin; page.style.boxShadow = saved.shadow;
-      page.style.minHeight = saved.minH; page.style.transform = saved.transform;
-      page.style.transformOrigin = saved.tOrigin; page.style.fontSize = saved.fs; page.style.zoom = saved.zoom;
+      btn.textContent = label; btn.disabled = false;
     }
   }
 
@@ -150,7 +176,7 @@
 
   // Expose a small API for the editor module; re-render the preview from the
   // store whenever the user edits blocks, reorders, rephrases, or imports.
-  window.RBApp = { autoFit: false, rerender: () => apply(current) };
+  window.RBApp = { autoFit: true, fitScale: 1, rerender: () => apply(current) };
   if (window.ResumeStore) window.ResumeStore.subscribe(() => apply(current));
 
   // Editor drawer
