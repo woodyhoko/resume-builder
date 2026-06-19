@@ -78,14 +78,31 @@
     const page = stage.querySelector(".page");
     if (!page || !window.html2pdf) { return savePDF(); }
     if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
-    window.html2pdf().set({
-      margin: 0,
-      filename: "Ho-Ko-Resume-" + current + ".pdf",
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 3, useCORS: true, backgroundColor: "#ffffff", windowWidth: 816 },
-      jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
-      pagebreak: { mode: ["css", "legacy"] }
-    }).from(page).save();
+    // Capture without the on-screen margin/shadow so the element's box is exactly
+    // 8.5in × 11in (the min-height floor) — html2canvas otherwise includes the
+    // 14px page margin and overflows onto a near-empty 2nd page.
+    const prev = { margin: page.style.margin, shadow: page.style.boxShadow };
+    page.style.margin = "0";
+    page.style.boxShadow = "none";
+    const btn = document.getElementById("btn-download");
+    const label = btn.textContent; btn.textContent = "Rendering…"; btn.disabled = true;
+    try {
+      await window.html2pdf().set({
+        margin: 0,
+        filename: "Ho-Ko-Resume-" + current + ".pdf",
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 3, useCORS: true, backgroundColor: "#ffffff", windowWidth: 816 },
+        jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
+        pagebreak: { mode: ["avoid-all"] }
+      }).from(page).save();
+    } catch (e) {
+      console.error("Download failed, falling back to print:", e);
+      savePDF();
+    } finally {
+      page.style.margin = prev.margin;
+      page.style.boxShadow = prev.shadow;
+      btn.textContent = label; btn.disabled = false;
+    }
   }
 
   // ---- Wire up ----

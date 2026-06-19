@@ -63,8 +63,7 @@ window.RESUME = {
     { title:"Accelerating Inference of Retrieval-Augmented Generation via Sparse Context Selection", venue:"ICLR 2025", note:"Google DeepMind", core:true },
     { title:"Opportunistic Hypertension Detection from Wearable PPG", venue:"medRxiv 2025", note:"Google Health &amp; Fitbit", core:true },
     { title:"Forecasting of Solar Power Generation using Real-time Meteorological Information", venue:"2020", note:"", core:false },
-    { title:"A Type IIb Supernova (ZTF18aalrxas)", venue:"ApJL 878:L5", note:"2019", core:true },
-    { title:"Real-world WebAssembly Performance for ML", venue:"ACM IMC 2023", note:"", core:true }
+    { title:"A Type IIb Supernova (ZTF18aalrxas)", venue:"ApJL 878:L5", note:"2019", core:true }
   ],
 
   projects: [
