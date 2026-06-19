@@ -27,10 +27,29 @@ in [`pdf/`](pdf/).
 ## Features
 
 - **Nine switchable designs** rendered from one shared data model.
+- **✦ Editor drawer** with on-device AI:
+  - **Import your résumé** — upload a PDF / TXT / MD / JSON (or paste text). Parsed
+    into editable blocks and cached in your browser (localStorage). PDF text is
+    extracted with `pdf.js`.
+  - **Drag-and-drop experience blocks** — reorder by dragging, include/exclude with a
+    checkbox, edit inline, delete, or **+ add** new blocks. The résumé re-renders live.
+  - **Rephrase with AI** — pick a tone (Professional / Concise / Impact / Leadership /
+    Plain) and an optional instruction, then rewrite any block's bullets locally.
+  - **Auto-fit** — scales oversized content down so it always exports as one page.
 - **Edit text** — toggle in-place editing to tweak wording before exporting.
 - **Save as PDF** — native print pipeline; crisp, vector, selectable text at exact Letter size.
-- **Download PDF** — one-click rasterized export via `html2pdf.js`.
+- **Download PDF** — one-click export; captures the page at exactly 816×1056 (US Letter
+  @96dpi) so it is never empty and never spills to a second page.
 - **Fit guard** — warns in the UI if edits push a design past one page.
+
+### On-device AI (Gemma 4)
+
+The Editor's AI runs **entirely in your browser** on WebGPU — the same approach
+hoko.xyz uses for its on-device chat. It loads `litert-community/gemma-4-E2B-it`
+through MediaPipe's `tasks-genai` runtime and streams the `.task` weights into an
+**OPFS cache**, so the multi-GB download only happens once. Your résumé text never
+leaves the device. Requires Chrome/Edge 113+ with WebGPU; if the model isn't loaded,
+import falls back to a simple text splitter and rephrasing is disabled.
 
 ## Architecture (modular)
 
@@ -40,9 +59,12 @@ resume-builder/
 ├── css/
 │   └── app.css             # toolbar / preview chrome + print rules
 ├── js/
-│   ├── data.js             # RESUME — single source of truth for all content
+│   ├── data.js             # RESUME — default content
+│   ├── store.js            # editable state + localStorage cache (the live source)
+│   ├── llm.js              # on-device Gemma 4 loader (MediaPipe LiteRT + OPFS cache)
+│   ├── editor.js           # drawer: import, drag-drop blocks, add/edit, rephrase
 │   ├── registry.js         # registerTemplate() + shared render helpers (H)
-│   ├── app.js              # switching, editing, PDF export, fit-check
+│   ├── app.js              # switching, editing, PDF export, auto-fit, fit-check
 │   └── templates/          # ONE self-contained module per design
 │       ├── 01-modern-sidebar.js
 │       ├── 02-classic.js

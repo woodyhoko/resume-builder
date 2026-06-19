@@ -26,16 +26,36 @@
   const indexOf = (key) => Math.max(0, TPLS.findIndex(t => t.key === key));
   const byKey   = (key) => TPLS.find(t => t.key === key) || TPLS[0];
 
+  const DATAVIEW = () => (window.ResumeStore ? window.ResumeStore.view() : DATA);
+
   function apply(key) {
-    const t = byKey(key);
+    const t = byKey(key || current);
     current = t.key;
     styleEl.textContent = t.css;
-    stage.innerHTML = t.render(DATA, H);
+    stage.innerHTML = t.render(DATAVIEW(), H);
     select.value = t.key;
     descEl.textContent = t.description || "";
     if (editing) setEdit(true);
-    requestAnimationFrame(checkFit);
+    requestAnimationFrame(() => { applyAutoFit(); checkFit(); });
     try { history.replaceState(null, "", "?t=" + t.key); } catch (e) {}
+  }
+
+  // Auto-fit: when enabled and content overflows one page, scale the page down
+  // (uniformly, top-anchored) so the preview — and the export — stay one page.
+  function applyAutoFit() {
+    const page = stage.querySelector(".page");
+    if (!page) return;
+    page.style.transform = ""; page.style.transformOrigin = "";
+    if (!(window.RBApp && window.RBApp.autoFit)) return;
+    const prevMin = page.style.minHeight;
+    page.style.minHeight = "0";
+    const contentH = page.scrollHeight;
+    page.style.minHeight = prevMin;
+    if (contentH > 1056) {
+      const s = Math.max(0.6, 1056 / contentH);
+      page.style.transformOrigin = "top center";
+      page.style.transform = "scale(" + s.toFixed(4) + ")";
+    }
   }
 
   function setEdit(on) {
@@ -78,14 +98,28 @@
     const page = stage.querySelector(".page");
     if (!page || !window.html2pdf) { return savePDF(); }
     if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
-    // Capture without the on-screen margin/shadow so the element's box is exactly
-    // 8.5in × 11in (the min-height floor) — html2canvas otherwise includes the
-    // 14px page margin and overflows onto a near-empty 2nd page.
-    const prev = { margin: page.style.margin, shadow: page.style.boxShadow };
-    page.style.margin = "0";
-    page.style.boxShadow = "none";
     const btn = document.getElementById("btn-download");
     const label = btn.textContent; btn.textContent = "Rendering…"; btn.disabled = true;
+
+    // Capture the on-screen page directly (html2canvas renders off-screen clones
+    // blank). Strip the margin/shadow so the box is exactly the 8.5×11in
+    // min-height floor. If the user's content overflows one page, temporarily
+    // shrink the page's type scale so it fits, then restore.
+    const saved = {
+      margin: page.style.margin, shadow: page.style.boxShadow,
+      minH: page.style.minHeight, transform: page.style.transform,
+      tOrigin: page.style.transformOrigin, fs: page.style.fontSize, zoom: page.style.zoom
+    };
+    page.style.margin = "0"; page.style.boxShadow = "none"; page.style.transform = "";
+
+    // Measure true content; if > one page, scale type down via zoom (reflows, and
+    // html2canvas honors it when applied to the captured element itself here).
+    page.style.minHeight = "0";
+    const contentH = page.scrollHeight;
+    const s = Math.min(1, 1056 / Math.max(contentH, 1));
+    if (s < 1) { page.style.zoom = s; }
+    page.style.minHeight = (s < 1 ? Math.round(1056 / s) : 1056) + "px";
+
     try {
       await window.html2pdf().set({
         margin: 0,
@@ -99,9 +133,9 @@
       console.error("Download failed, falling back to print:", e);
       savePDF();
     } finally {
-      page.style.margin = prev.margin;
-      page.style.boxShadow = prev.shadow;
-      btn.textContent = label; btn.disabled = false;
+      page.style.margin = saved.margin; page.style.boxShadow = saved.shadow;
+      page.style.minHeight = saved.minH; page.style.transform = saved.transform;
+      page.style.transformOrigin = saved.tOrigin; page.style.fontSize = saved.fs; page.style.zoom = saved.zoom;
     }
   }
 
@@ -113,6 +147,21 @@
   document.getElementById("btn-print").addEventListener("click", savePDF);
   document.getElementById("btn-download").addEventListener("click", downloadPDF);
   window.addEventListener("resize", checkFit);
+
+  // Expose a small API for the editor module; re-render the preview from the
+  // store whenever the user edits blocks, reorders, rephrases, or imports.
+  window.RBApp = { autoFit: false, rerender: () => apply(current) };
+  if (window.ResumeStore) window.ResumeStore.subscribe(() => apply(current));
+
+  // Editor drawer
+  if (window.ResumeEditor) {
+    window.ResumeEditor.init();
+    const edBtn = document.getElementById("btn-editor");
+    if (edBtn) edBtn.addEventListener("click", () => { window.ResumeEditor.toggle(); edBtn.classList.toggle("on"); });
+    if (new URLSearchParams(location.search).get("editor") === "1") {
+      window.ResumeEditor.toggle(); edBtn && edBtn.classList.add("on");
+    }
+  }
 
   // Initial template from ?t= param, else first.
   const params = new URLSearchParams(location.search);
