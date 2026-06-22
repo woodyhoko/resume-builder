@@ -184,16 +184,47 @@ window.ResumeEditor = (function () {
     if (parsed.skills) { s.skillsHidden = s.skillsHidden || []; Object.entries(parsed.skills).forEach(([k, v]) => { if (!s.skills[k]) { s.skills[k] = Array.isArray(v) ? v : String(v).split(/,\s*/); s.skillsHidden.push(k); } }); }
   }
 
+  // Reconstruct text lines from a PDF using each glyph-run's position. pdf.js
+  // returns items in content-stream order with a transform matrix; we group runs
+  // that share a baseline (y) into one line, and split when y jumps — otherwise
+  // the whole résumé collapses into a single space-joined blob.
   async function extractPdf(file) {
     const pdfjs = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs");
     pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
     const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
-    let out = "";
-    for (let i = 1; i <= doc.numPages; i++) {
-      const tc = await (await doc.getPage(i)).getTextContent();
-      out += tc.items.map((it) => it.str).join(" ") + "\n";
+    const allLines = [];
+    for (let p = 1; p <= doc.numPages; p++) {
+      const tc = await (await doc.getPage(p)).getTextContent();
+      const rows = [];
+      tc.items.forEach((it) => {
+        const s = it.str;
+        if (!s) return;
+        const y = it.transform[5], x = it.transform[4];
+        let row = rows.find((r) => Math.abs(r.y - y) <= 3);
+        if (!row) { row = { y, parts: [] }; rows.push(row); }
+        row.parts.push({ x, w: it.width || 0, s });
+      });
+      rows.sort((a, b) => b.y - a.y); // top→bottom (PDF y grows upward)
+      rows.forEach((r) => {
+        r.parts.sort((a, b) => a.x - b.x);
+        // Split a row into separate lines at large horizontal gaps, so a two-column
+        // layout (content left, location/dates right) doesn't merge into one line.
+        const segs = []; let seg = null;
+        r.parts.forEach((pt) => {
+          if (seg && pt.x - seg.endX > 45) { segs.push(seg.text); seg = null; }
+          if (!seg) seg = { text: "", endX: pt.x };
+          const gap = pt.x - seg.endX;
+          // Only insert a space at a real horizontal gap — adjacent glyph runs
+          // (e.g. the "fi" ligature) are contiguous and must not be split.
+          if (seg.text && gap > 1.2 && !seg.text.endsWith(" ") && pt.s[0] !== " ") seg.text += " ";
+          seg.text += pt.s; seg.endX = pt.x + pt.w;
+        });
+        if (seg) segs.push(seg.text);
+        segs.forEach((t) => { t = t.replace(/\s{2,}/g, " ").trim(); if (t) allLines.push(t); });
+      });
+      allLines.push("");
     }
-    return out;
+    return allLines.join("\n");
   }
 
   async function parseWithLLM(text) {
@@ -210,115 +241,139 @@ window.ResumeEditor = (function () {
     return JSON.parse(m[0]);
   }
 
-  // Section-aware parser: splits the document into Summary / Experience /
-  // Education / Skills by recognising headings, then groups entries + bullets.
+  // Section-aware parser. Real résumés put dates/locations in a right-hand
+  // column, so after line reconstruction those values trail each entry — this
+  // parser treats them as attributes of the current entry rather than new rows.
   const MON = "(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?";
   const DATE_RE = new RegExp("((?:19|20)\\d{2}|" + MON + "\\s+(?:19|20)\\d{2})\\s*(?:[\\u2013\\u2014\\-]|to)\\s*((?:19|20)\\d{2}|present|current|now|" + MON + "\\s+(?:19|20)\\d{2})", "i");
   const YEAR_RE = /\b(?:19|20)\d{2}\b/;
-  const BULLET_RE = /^\s*[-•*●·▪◦‣–]\s+/;
-  const CONTACT_RE = /@|linkedin\.com|github\.com|\b[\w-]+\.(?:xyz|dev|io|me)\b|^\+?\d[\d\s().-]{7,}$|\|\s*\S+\s*\|/i;
+  const BULLET_RE = /^\s*[-•*●·▪◦‣]\s+/;
+  const DEGREE_RE = /\b(b\.?s\.?|m\.?s\.?|ph\.?\s?d|bachelor|master|doctor|b\.?a\.?|m\.?a\.?|m\.?eng|b\.?eng|mba|associate|diploma|m\.?b\.?a)\b/i;
+  const SCHOOL_RE = /(university|college|institute|\bschool\b|academy|polytechnic)/i;
 
   function sectionOf(line) {
     const h = line.toLowerCase().replace(/[^a-z ]/g, "").trim();
-    if (h.length > 32) return null;
-    if (/^(work )?experien|^employ|^professional (experience|background)|^career/.test(h)) return "experience";
+    if (h.length > 26 || h.length < 3) return null;
+    if (/^(work )?experien|^employ|^professional (experience|background)|^career|^work history/.test(h)) return "experience";
     if (/^educat|^academic/.test(h)) return "education";
-    if (/^(technical )?skills?|^competenc|^technolog/.test(h)) return "skills";
-    if (/^projects?/.test(h)) return "experience";          // fold projects into experience blocks
+    if (/^(technical |core )?skills?|^competenc|^technolog|^languages?$/.test(h)) return "skills";
+    if (/^projects?/.test(h)) return "experience";
     if (/^(summary|profile|objective|about)/.test(h)) return "summary";
     if (/^public|^papers/.test(h)) return "publications";
+    if (/^additional|^other|^misc|^interests|^awards|^certif/.test(h)) return "additional";
     return null;
   }
 
+  function isDateLine(l) {
+    const hasYear = /(?:19|20)\d{2}/.test(l), hasPresent = /\b(present|current|now)\b/i.test(l);
+    return (hasYear || hasPresent) && l.replace(/\s/g, "").length <= 24;
+  }
+  function isLocation(l) {
+    const s = l.trim();
+    return /^remote$/i.test(s)
+      || /^[A-Z][\w.]+(?:[ \-][A-Z][\w.]+)*,\s*(?:[A-Z]{2}|[A-Z][a-z]+\.?)$/.test(s) // City, ST | City, Country
+      || /^[A-Z][a-z]+,$/.test(s);                                                    // "Shandong," (wrapped)
+  }
+
   function heuristicParse(text) {
-    const lines = text.split(/\r?\n/).map((l) => l.replace(/\s+$/, ""));
+    const lines = text.split(/\r?\n/).map((l) => l.trim());
+    const head = lines.slice(0, 6).join(" ");
     const contact = {};
-    const em = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/); if (em) contact.email = em[0];
+    const em = text.match(/[\w.+-]+@[\w-]+\.[\w.-]+/); if (em) contact.email = em[0].replace(/[).,]+$/, "");
     const li = text.match(/linkedin\.com\/[\w/%-]+/i); if (li) contact.linkedin = li[0].replace(/[).,]+$/, "");
     const gh = text.match(/github\.com\/[\w/%-]+/i); if (gh) contact.github = gh[0].replace(/[).,]+$/, "");
-    const site = text.match(/\b[\w-]+\.(?:xyz|dev|io|me|com)\b/i);
+    const ph = head.match(/\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/); if (ph) contact.phone = ph[0];
+    const contactLine = lines.slice(0, 6).find((l) => /[•|]|@|\d{3}[-.\s]\d{3}/.test(l)) || "";
+    const loc = contactLine.match(/([A-Z][a-zA-Z.]+(?:\s[A-Z][a-zA-Z.]+){0,2},\s*[A-Z]{2})\b/); if (loc) contact.location = loc[1];
 
-    const buckets = { summary: [], experience: [], education: [], skills: [], publications: [] };
+    let name = "";
+    const firstReal = lines.find((l) => l);
+    if (firstReal && firstReal.length <= 40 && !/[@\d]/.test(firstReal)) name = firstReal;
+
+    const buckets = { summary: [], experience: [], education: [], skills: [], publications: [], additional: [] };
     let cur = "summary";
-    let name = "", title = "";
-    const firstReal = lines.find((l) => l.trim());
-    if (firstReal && firstReal.trim().length <= 40 && !/[@\d]/.test(firstReal)) name = firstReal.trim();
-
-    lines.forEach((raw) => {
-      const l = raw.trim();
+    lines.forEach((l) => {
       if (!l) return;
       const sec = sectionOf(l);
       if (sec) { cur = sec; return; }
-      if (l === name) { return; }
-      if (!title && cur === "summary" && buckets.summary.length === 0 && l.length <= 60 && /engineer|developer|scientist|manager|designer|analyst|consultant|architect|lead/i.test(l)) { title = l; return; }
-      // Skip contact / header lines (already extracted) so they don't pollute the summary.
-      if (cur === "summary" && CONTACT_RE.test(l)) return;
+      if (l === name) return;
+      if (cur === "summary" && (CONTACT_RE(l))) return;     // drop header contact line
       buckets[cur].push(l);
     });
 
+    // "X Skills: …" lines may appear under Additional/Other — route them to skills.
+    const skillLines = buckets.skills.slice();
+    buckets.additional.forEach((l) => { if (/skills?\s*:/i.test(l) || /:/.test(l)) skillLines.push(l); });
+
     const out = {
-      name, title, contact,
+      name, contact,
       summary: buckets.summary.join(" ").replace(/\s{2,}/g, " ").trim().slice(0, 700),
-      experience: groupEntries(buckets.experience),
-      education: groupEdu(buckets.education),
-      skills: parseSkills(buckets.skills)
+      experience: groupExperience(buckets.experience),
+      education: groupEducation(buckets.education),
+      skills: parseSkills(skillLines)
     };
     if (!out.experience.length && !out.education.length && !Object.keys(out.skills).length) {
-      // nothing recognised — keep raw text as one editable block rather than losing it
-      out.experience = [{ title: "Imported résumé", company: "", date: "", bullets: lines.map((l) => l.trim()).filter(Boolean) }];
+      out.experience = [{ title: "Imported résumé", company: "", date: "", bullets: lines.filter(Boolean) }];
     }
     return out;
   }
 
-  function groupEntries(arr) {
-    const out = []; let cur = null;
-    arr.forEach((l) => {
-      if (BULLET_RE.test(l)) {
-        if (!cur) { cur = { title: "Experience", company: "", date: "", bullets: [] }; out.push(cur); }
-        cur.bullets.push(l.replace(BULLET_RE, "").trim());
-      } else {
-        const dm = l.match(DATE_RE) || l.match(YEAR_RE);
-        const date = dm ? dm[0] : "";
-        let head = (date ? l.replace(date, "") : l).replace(/[|•·,–-]\s*$/, "").replace(/\s{2,}/g, " ").trim();
-        let title = head, company = "";
-        const sp = head.split(/\s+(?:at|@)\s+|\s+[|–—]\s+|,\s+/);
-        if (sp.length >= 2 && sp[0].length <= 60) { title = sp[0].trim(); company = sp.slice(1).join(", ").trim(); }
-        cur = { title: title || "Role", company: company, date: date, bullets: [] };
-        out.push(cur);
-      }
-    });
-    return out;
+  function CONTACT_RE(l) {
+    return /@|linkedin\.com|github\.com|\b[\w-]+\.(?:xyz|dev|io|me)\b|\d{3}[-.\s]\d{3}[-.\s]\d{4}|•|\|/.test(l);
   }
 
-  function groupEdu(arr) {
-    const out = [];
+  const tidy = (s) => s.replace(/\s+([.,;:%)])/g, "$1").replace(/\(\s+/g, "(").replace(/\s{2,}/g, " ").trim();
+
+  function groupExperience(arr) {
+    const out = []; let cur = null, expectCompany = false;
+    const mk = (t) => { const e = { title: t, company: "", date: "", location: "", bullets: [] }; out.push(e); return e; };
     arr.forEach((l) => {
-      const isDegree = /\b(b\.?s\.?|m\.?s\.?|ph\.?d|bachelor|master|doctor|b\.?a\.?|m\.?a\.?|mba|associate|diploma)\b/i.test(l);
-      const dm = l.match(DATE_RE) || l.match(YEAR_RE);
-      const date = dm ? dm[0] : "";
-      const gpa = (l.match(/gpa[:\s]*([0-4]\.\d{1,2})/i) || [])[1] || "";
-      const rest = l.replace(date, "").replace(/gpa[:\s]*[0-4]\.\d{1,2}/i, "").replace(/\s{2,}/g, " ").replace(/[,\s]+$/, "").trim();
-      if (isDegree || !out.length) {
-        let degree = rest, school = "";
-        const sp = rest.split(/,\s+/);
-        if (sp.length >= 2) { degree = sp[0].trim(); school = sp.slice(1).join(", ").trim(); }
-        out.push({ degree: degree || rest, school, shortSchool: school, date, gpa });
-      } else {
-        const last = out[out.length - 1];
-        if (!last.school) last.school = last.shortSchool = rest;
-        if (date && !last.date) last.date = date;
-        if (gpa && !last.gpa) last.gpa = gpa;
+      if (BULLET_RE.test(l)) { if (!cur) cur = mk("Experience"); cur.bullets.push(l.replace(BULLET_RE, "").trim()); expectCompany = false; return; }
+      if (isDateLine(l)) { if (cur) cur.date = (cur.date ? cur.date + " " : "") + l; return; }
+      if (isLocation(l)) { if (cur) cur.location = l; return; }
+      if (cur && expectCompany && !cur.company && cur.bullets.length === 0) { cur.company = l; expectCompany = false; return; }
+      // Wrapped continuation of the previous bullet (PDF line-wrap): lines that
+      // start lowercase, or follow a bullet that didn't end a sentence, are not
+      // new entries — append them to the last bullet.
+      if (cur && cur.bullets.length) {
+        const prev = cur.bullets[cur.bullets.length - 1];
+        if (/^[a-z(]/.test(l) || !/[.!?:]$/.test(prev)) { cur.bullets[cur.bullets.length - 1] = prev + " " + l; return; }
       }
+      cur = mk(l); expectCompany = true;
     });
-    return out;
+    out.forEach((e) => {
+      e.date = e.date.replace(/\s*[–—\-]\s*/g, " – ").replace(/\s{2,}/g, " ").replace(/–\s*$/, "").trim();
+      e.bullets = e.bullets.map(tidy);
+    });
+    return out.filter((e) => e.bullets.length || e.company || e.date);
+  }
+
+  function groupEducation(arr) {
+    const out = []; let cur = null;
+    const mk = () => { const e = { degree: "", school: "", shortSchool: "", date: "", gpa: "" }; out.push(e); return e; };
+    arr.forEach((l) => {
+      const gpaM = l.match(/gpa[:\s]*([0-4](?:\.\d{1,2})?(?:\s*\/\s*4(?:\.0)?)?)/i);
+      if (SCHOOL_RE.test(l) && !DEGREE_RE.test(l)) { cur = mk(); cur.school = cur.shortSchool = l; return; }
+      if (DEGREE_RE.test(l)) { if (!cur) cur = mk(); cur.degree = l; return; }
+      if (gpaM) { if (cur) cur.gpa = gpaM[1].replace(/\s/g, ""); return; }
+      if (isDateLine(l)) { if (cur) cur.date = (cur.date ? cur.date + " " : "") + l; return; }
+      if (isLocation(l)) return;
+      if (cur && !cur.degree) cur.degree = l;
+    });
+    out.forEach((e) => { e.date = (e.date.match(YEAR_RE) || [e.date])[0]; });
+    return out.filter((e) => e.degree || e.school);
   }
 
   function parseSkills(arr) {
     const skills = {};
     arr.forEach((l) => {
-      const m = l.match(/^([A-Za-z][\w &/+.-]{1,34}?):\s*(.+)$/);
-      if (m) { skills[m[1].trim()] = m[2].split(/[,;|·]\s*/).map((x) => x.trim()).filter(Boolean); }
-      else { (skills["Skills"] = skills["Skills"] || []).push(...l.split(/[,;|·]\s*/).map((x) => x.trim()).filter(Boolean)); }
+      const m = l.match(/^([A-Za-z][\w &/+.-]{1,34}?)\s*:\s*(.+)$/);
+      if (m) {
+        const cat = m[1].trim().replace(/\s*skills?$/i, "").replace(/^technical$/i, "Technical").replace(/^language$/i, "Languages") || "Skills";
+        skills[cat] = m[2].split(/[,;|·]\s*/).map((x) => x.trim()).filter(Boolean);
+      } else {
+        (skills["Skills"] = skills["Skills"] || []).push(...l.split(/[,;|·]\s*/).map((x) => x.trim()).filter(Boolean));
+      }
     });
     return skills;
   }
@@ -328,16 +383,21 @@ window.ResumeEditor = (function () {
     const base = store.get();
     const out = JSON.parse(JSON.stringify(base));
     if (obj.name) out.name = obj.name;
-    if (obj.title) out.title = obj.title;
-    if (obj.contact && typeof obj.contact === "object") {
-      const c = obj.contact;
-      if (c.email) out.contact.email = c.email;
-      if (c.location) out.contact.location = c.location;
-      if (c.linkedin) { out.contact.linkedin = c.linkedin; out.contact.linkedinUrl = "https://" + c.linkedin.replace(/^https?:\/\//, ""); }
-      if (c.github) { out.contact.github = c.github; out.contact.githubUrl = "https://" + c.github.replace(/^https?:\/\//, ""); }
-      if (c.website) { out.contact.website = c.website; out.contact.websiteUrl = "https://" + c.website.replace(/^https?:\/\//, ""); }
-    }
-    if (obj.summary) out.summary = obj.summary;
+    out.title = obj.title || "";
+    // Build mode replaces contact wholesale so no sample details leak through.
+    const c = obj.contact || {};
+    const url = (v) => "https://" + String(v).replace(/^https?:\/\//, "");
+    out.contact = {
+      email: c.email || "", location: c.location || "", phone: c.phone || "",
+      website: c.website || "", websiteUrl: c.website ? url(c.website) : "",
+      linkedin: c.linkedin || "", linkedinUrl: c.linkedin ? url(c.linkedin) : "",
+      github: c.github || "", githubUrl: c.github ? url(c.github) : ""
+    };
+    out.summary = obj.summary || "";
+    out.highlights = [];     // sample-only; don't carry into an imported résumé
+    out.projects = [];
+    out.publications = Array.isArray(obj.publications) ? obj.publications : [];
+    out.skillsHidden = [];
     if (Array.isArray(obj.experience) && obj.experience.length) {
       out.experience = obj.experience.map((e) => ({
         title: e.title || "Role", company: e.company || "", date: e.date || "",

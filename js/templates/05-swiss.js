@@ -47,28 +47,25 @@ registerTemplate({
     const jobs = d.experience.map(j =>
       `<div class="exp" data-rb-drag="exp:${j.id}"><div class="top"><div class="ttl">${j.title} — <span class="co">${j.company}</span></div><div class="dt">${j.date}</div></div><ul class="b">${H.bullets(j)}</ul></div>`).join("");
     const edu = d.education.map(e =>
-      `<div class="edu"><div class="d">${e.degree}</div><div class="s">${e.shortSchool}</div><div class="m">${e.date} · GPA ${e.gpa}</div></div>`).join("");
+      `<div class="edu"><div class="d">${e.degree}</div><div class="s">${e.shortSchool}</div><div class="m">${[e.date, e.gpa ? "GPA " + e.gpa : ""].filter(Boolean).join(" · ")}</div></div>`).join("");
     const skills = Object.entries(d.skills).map(([cat, arr]) =>
       `<div><span class="k">${cat}</span> — ${H.join(arr)}</div>`).join("");
     const pubs = H.pubs(d, true).map(p =>
       `<div class="pub"><span class="t">${p.title}</span> · <span class="v">${p.venue}</span>${p.note?`, ${p.note}`:""}</div>`).join("");
     const row = (n, label, content) =>
-      `<div class="row"><div class="label"><span class="n">${n}</span>${label}</div><div class="content">${content}</div></div>`;
+      content ? `<div class="row"><div class="label"><span class="n">${n}</span>${label}</div><div class="content">${content}</div></div>` : "";
     return `<div class="page">
       <div class="hero">
         <div class="name">Ho <b>Ko</b></div>
         <div class="meta">
           <div class="role">${d.title}</div>
-          <div class="contact">
-            <a href="mailto:${C.email}">${C.email}</a> &nbsp; ${C.location}<br>
-            <a href="${C.websiteUrl}">${C.website}</a> &nbsp; <a href="${C.linkedinUrl}">${C.linkedin}</a> &nbsp; <a href="${C.githubUrl}">${C.github}</a>
-          </div>
+          <div class="contact">${H.contactJoin(C, " &nbsp; ")}</div>
         </div>
       </div>
-      ${row("01","Profile",`<p class="lead">${d.summary}</p>`)}
+      ${row("01","Profile", d.summary ? `<p class="lead">${d.summary}</p>` : "")}
       ${row("02","Experience",jobs)}
       ${row("03","Education",edu)}
-      ${row("04","Skills",`<div class="sk">${skills}</div>`)}
+      ${row("04","Skills", skills ? `<div class="sk">${skills}</div>` : "")}
       ${row("05","Publications",pubs)}
     </div>`;
   }

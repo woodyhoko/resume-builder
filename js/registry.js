@@ -34,5 +34,15 @@ window.RBHelpers = {
     { k:"Website",  t:c.website,  href:c.websiteUrl },
     { k:"LinkedIn", t:c.linkedin, href:c.linkedinUrl },
     { k:"GitHub",   t:c.github,   href:c.githubUrl }
-  ])
+  ]),
+  // Inline contact line containing ONLY the fields that are present, joined by sep.
+  contactJoin: (c, sep) => {
+    const p = [];
+    if (c.email)    p.push(`<a href="mailto:${c.email}">${c.email}</a>`);
+    if (c.location) p.push(`<span>${c.location}</span>`);
+    if (c.website)  p.push(`<a href="${c.websiteUrl}">${c.website}</a>`);
+    if (c.linkedin) p.push(`<a href="${c.linkedinUrl}">${c.linkedin}</a>`);
+    if (c.github)   p.push(`<a href="${c.githubUrl}">${c.github}</a>`);
+    return p.join(sep);
+  }
 };

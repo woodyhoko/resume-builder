@@ -51,7 +51,7 @@ registerTemplate({
     const jobs = d.experience.map(j =>
       `<div class="job" data-rb-drag="exp:${j.id}"><div class="job-head"><div class="job-title">${j.title} · <span class="job-co">${j.company}</span></div><div class="job-date">${j.date}</div></div><ul class="bullets">${H.bullets(j)}</ul></div>`).join("");
     const edu = d.education.map(e =>
-      `<div class="edu"><div class="d">${e.degree}</div><div class="s">${e.shortSchool} · GPA ${e.gpa}</div><div class="m">${e.date}</div></div>`).join("");
+      `<div class="edu"><div class="d">${e.degree}</div><div class="s">${[e.shortSchool, e.gpa ? "GPA " + e.gpa : ""].filter(Boolean).join(" · ")}</div><div class="m">${e.date}</div></div>`).join("");
     const skills = Object.entries(d.skills).map(([cat, arr]) =>
       `<div class="skill-row"><div class="k">${km[cat]||cat}</div><div class="v">${H.join(arr)}</div></div>`).join("");
     const pubs = H.pubs(d, true).map(p =>
@@ -59,20 +59,20 @@ registerTemplate({
     return `<div class="page">
       <header><div><div class="name">${d.name}</div><div class="role">${d.title}</div></div>
         <div class="contact">
-          <div><span class="k">email</span> <a href="mailto:${C.email}">${C.email}</a></div>
-          <div><span class="k">loc&nbsp;&nbsp;</span> ${C.location}</div>
-          <div><span class="k">web&nbsp;&nbsp;</span> <a href="${C.websiteUrl}">${C.website}</a></div>
-          <div><span class="k">li&nbsp;&nbsp;&nbsp;</span> <a href="${C.linkedinUrl}">${C.linkedin}</a></div>
-          <div><span class="k">git&nbsp;&nbsp;</span> <a href="${C.githubUrl}">${C.github}</a></div>
+          ${C.email ? `<div><span class="k">email</span> <a href="mailto:${C.email}">${C.email}</a></div>` : ""}
+          ${C.location ? `<div><span class="k">loc&nbsp;&nbsp;</span> ${C.location}</div>` : ""}
+          ${C.website ? `<div><span class="k">web&nbsp;&nbsp;</span> <a href="${C.websiteUrl}">${C.website}</a></div>` : ""}
+          ${C.linkedin ? `<div><span class="k">li&nbsp;&nbsp;&nbsp;</span> <a href="${C.linkedinUrl}">${C.linkedin}</a></div>` : ""}
+          ${C.github ? `<div><span class="k">git&nbsp;&nbsp;</span> <a href="${C.githubUrl}">${C.github}</a></div>` : ""}
         </div>
       </header>
-      <p class="summary">${d.summary}</p>
-      <section><h2>Experience<span class="ln"></span></h2>${jobs}</section>
-      <div class="grid2">
-        <section><h2>Education<span class="ln"></span></h2>${edu}</section>
-        <section><h2>Skills<span class="ln"></span></h2>${skills}</section>
-      </div>
-      <section><h2>Selected Publications<span class="ln"></span></h2>${pubs}</section>
+      ${d.summary ? `<p class="summary">${d.summary}</p>` : ""}
+      ${jobs ? `<section><h2>Experience<span class="ln"></span></h2>${jobs}</section>` : ""}
+      ${(edu || skills) ? `<div class="grid2">
+        ${edu ? `<section><h2>Education<span class="ln"></span></h2>${edu}</section>` : "<section></section>"}
+        ${skills ? `<section><h2>Skills<span class="ln"></span></h2>${skills}</section>` : "<section></section>"}
+      </div>` : ""}
+      ${pubs ? `<section><h2>Selected Publications<span class="ln"></span></h2>${pubs}</section>` : ""}
     </div>`;
   }
 });

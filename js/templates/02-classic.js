@@ -43,26 +43,23 @@ registerTemplate({
   `,
   render(d, H) {
     const C = d.contact;
-    const contact = `<a href="mailto:${C.email}">${C.email}</a><span class="dot">•</span>`+
-      `<span>${C.location}</span><span class="dot">•</span>`+
-      `<a href="${C.websiteUrl}">${C.website}</a><span class="dot">•</span>`+
-      `<a href="${C.linkedinUrl}">${C.linkedin}</a><span class="dot">•</span>`+
-      `<a href="${C.githubUrl}">${C.github}</a>`;
+    const contact = H.contactJoin(C, '<span class="dot">•</span>');
     const jobs = d.experience.map(j =>
       `<div class="entry" data-rb-drag="exp:${j.id}"><div class="entry-head"><div class="entry-title">${j.title}, <span class="entry-org">${j.company}</span></div><div class="entry-date">${j.date}</div></div><ul class="bullets">${H.bullets(j)}</ul></div>`).join("");
     const edu = d.education.map(e =>
-      `<div class="edu-line"><div class="d">${e.degree} <span style="font-weight:600;color:var(--light);">· GPA ${e.gpa}</span></div><div class="s">${e.school}</div><div class="m">${e.date}</div></div>`).join("");
+      `<div class="edu-line"><div class="d">${e.degree}${e.gpa ? ` <span style="font-weight:600;color:var(--light);">· GPA ${e.gpa}</span>` : ""}</div><div class="s">${e.school}</div><div class="m">${e.date}</div></div>`).join("");
     const pubs = d.publications.map(p =>
       `<li><span class="t">${p.title}</span> — <span class="v">${p.venue}</span>${p.note?` (${p.note})`:""}.</li>`).join("");
     const skills = Object.entries(d.skills).map(([cat, arr]) =>
       `<div><span class="k">${cat}:</span> ${H.join(arr)}</div>`).join("");
+    const sec = (title, body) => body ? `<section><h2>${title}</h2>${body}</section>` : "";
     return `<div class="page">
       <header><div class="name">${d.name}</div><div class="role">${d.title.replace("AI/ML","AI / ML")}</div><div class="contact">${contact}</div></header>
-      <section><h2>Summary</h2><p class="summary">${d.summary}</p></section>
-      <section><h2>Professional Experience</h2>${jobs}</section>
-      <section><h2>Education</h2><div class="two-col">${edu}</div></section>
-      <section><h2>Selected Publications</h2><ul class="pub">${pubs}</ul></section>
-      <section><h2>Technical Skills</h2><div class="skills-grid">${skills}</div></section>
+      ${sec("Summary", d.summary ? `<p class="summary">${d.summary}</p>` : "")}
+      ${sec("Professional Experience", jobs)}
+      ${sec("Education", edu ? `<div class="two-col">${edu}</div>` : "")}
+      ${sec("Selected Publications", pubs ? `<ul class="pub">${pubs}</ul>` : "")}
+      ${sec("Technical Skills", skills ? `<div class="skills-grid">${skills}</div>` : "")}
     </div>`;
   }
 });

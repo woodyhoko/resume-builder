@@ -48,7 +48,7 @@ registerTemplate({
     const items = d.experience.map(j =>
       `<div class="item" data-rb-drag="exp:${j.id}"><div class="top"><div class="ttl">${j.title} · <span class="co">${j.company}</span></div><div class="dt">${j.date}</div></div><ul class="b">${H.bullets(j)}</ul></div>`).join("");
     const edu = d.education.map(e =>
-      `<div class="edu"><div class="d">${e.degree}</div><div class="s">${e.shortSchool} · GPA ${e.gpa}</div><div class="m">${e.date}</div></div>`).join("");
+      `<div class="edu"><div class="d">${e.degree}</div><div class="s">${[e.shortSchool, e.gpa ? "GPA " + e.gpa : ""].filter(Boolean).join(" · ")}</div><div class="m">${e.date}</div></div>`).join("");
     const skills = Object.entries(d.skills).map(([cat, arr]) =>
       `<div><span class="k">${cat}:</span> ${H.join(arr)}</div>`).join("");
     const pubs = H.pubs(d, true).map(p =>
@@ -56,20 +56,12 @@ registerTemplate({
     return `<div class="page">
       <div class="head">
         <div><div class="name">${d.name}</div><div class="role">${d.title}</div></div>
-        <div class="contact">
-          <div><a href="mailto:${C.email}">${C.email}</a> · ${C.location}</div>
-          <div><a href="${C.websiteUrl}">${C.website}</a> · <a href="${C.linkedinUrl}">${C.linkedin}</a></div>
-          <div><a href="${C.githubUrl}">${C.github}</a></div>
-        </div>
+        <div class="contact">${H.contactJoin(C, "<br>")}</div>
       </div>
-      <p class="lead">${d.summary}</p>
-      <h2>Experience</h2><div class="tl">${items}</div>
-      <h2>Education &amp; Skills</h2>
-      <div class="grid2">
-        <div>${edu}</div>
-        <div class="sk">${skills}</div>
-      </div>
-      <h2>Selected Publications</h2>${pubs}
+      ${d.summary ? `<p class="lead">${d.summary}</p>` : ""}
+      ${items ? `<h2>Experience</h2><div class="tl">${items}</div>` : ""}
+      ${(edu || skills) ? `<h2>Education &amp; Skills</h2><div class="grid2"><div>${edu}</div><div class="sk">${skills}</div></div>` : ""}
+      ${pubs ? `<h2>Selected Publications</h2>${pubs}` : ""}
     </div>`;
   }
 });

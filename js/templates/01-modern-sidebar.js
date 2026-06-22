@@ -58,31 +58,33 @@ registerTemplate({
     const skillBlocks = Object.entries(d.skills).map(([cat, arr]) =>
       `<div class="skill-cat">${cat}</div><div class="chips">${arr.map(s=>`<span class="chip">${s}</span>`).join("")}</div>`).join("");
     const edu = d.education.map(e =>
-      `<div class="edu-item"><div class="edu-deg">${e.degree}</div><div class="edu-school">${e.school}</div><div class="edu-meta">${e.date} · GPA ${e.gpa}</div></div>`).join("");
+      `<div class="edu-item"><div class="edu-deg">${e.degree}</div><div class="edu-school">${e.school}</div><div class="edu-meta">${[e.date, e.gpa ? "GPA " + e.gpa : ""].filter(Boolean).join(" · ")}</div></div>`).join("");
     const jobs = d.experience.map(j =>
       `<div class="job" data-rb-drag="exp:${j.id}"><div class="job-top"><div class="job-title">${j.title} · <span class="job-co">${j.company}</span></div><div class="job-date">${j.date}</div></div><ul class="bullets">${H.bullets(j)}</ul></div>`).join("");
     const pubs = H.pubs(d, true).map(p =>
       `<div class="pub"><span class="t">${p.title}</span> — <span class="v">${p.venue}</span>${p.note?`, ${p.note}`:""}.</div>`).join("");
     const projs = d.projects.map(p =>
       `<div class="proj"><span class="pn">${p.name}</span> — <span class="pd">${p.desc}</span></div>`).join("");
+    const cr = (lbl, inner) => inner ? `<div class="contact-row"><span class="lbl">${lbl}</span>${inner}</div>` : "";
+    const sec = (title, body) => body ? `<section class="sec"><div class="sec-head"><h2>${title}</h2><div class="bar"></div></div>${body}</section>` : "";
     return `<div class="page">
       <aside class="sidebar">
         <div class="name">${d.name}</div><div class="role">${d.title}</div>
         <div class="sb-block"><div class="sb-title">Contact</div>
-          <div class="contact-row"><span class="lbl">✉</span><a href="mailto:${C.email}">${C.email}</a></div>
-          <div class="contact-row"><span class="lbl">⌖</span><span>${C.location}</span></div>
-          <div class="contact-row"><span class="lbl">⊕</span><a href="${C.websiteUrl}">${C.website}</a></div>
-          <div class="contact-row"><span class="lbl">in</span><a href="${C.linkedinUrl}">${C.linkedin}</a></div>
-          <div class="contact-row"><span class="lbl">gh</span><a href="${C.githubUrl}">${C.github}</a></div>
+          ${cr("✉", C.email ? `<a href="mailto:${C.email}">${C.email}</a>` : "")}
+          ${cr("⌖", C.location ? `<span>${C.location}</span>` : "")}
+          ${cr("⊕", C.website ? `<a href="${C.websiteUrl}">${C.website}</a>` : "")}
+          ${cr("in", C.linkedin ? `<a href="${C.linkedinUrl}">${C.linkedin}</a>` : "")}
+          ${cr("gh", C.github ? `<a href="${C.githubUrl}">${C.github}</a>` : "")}
         </div>
-        <div class="sb-block"><div class="sb-title">Skills</div>${skillBlocks}</div>
-        <div class="sb-block"><div class="sb-title">Education</div>${edu}</div>
+        ${skillBlocks ? `<div class="sb-block"><div class="sb-title">Skills</div>${skillBlocks}</div>` : ""}
+        ${edu ? `<div class="sb-block"><div class="sb-title">Education</div>${edu}</div>` : ""}
       </aside>
       <main class="main">
-        <p class="summary">${d.summary}</p>
-        <section class="sec"><div class="sec-head"><h2>Experience</h2><div class="bar"></div></div>${jobs}</section>
-        <section class="sec"><div class="sec-head"><h2>Selected Publications</h2><div class="bar"></div></div>${pubs}</section>
-        <section class="sec"><div class="sec-head"><h2>Selected Projects</h2><div class="bar"></div></div>${projs}</section>
+        ${d.summary ? `<p class="summary">${d.summary}</p>` : ""}
+        ${sec("Experience", jobs)}
+        ${sec("Selected Publications", pubs)}
+        ${sec("Selected Projects", projs)}
       </main>
     </div>`;
   }

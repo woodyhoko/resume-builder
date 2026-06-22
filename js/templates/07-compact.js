@@ -52,7 +52,7 @@ registerTemplate({
     const skillBlocks = Object.entries(d.skills).map(([cat, arr]) =>
       `<div class="scat">${cat}</div><div class="chips">${arr.map(s=>`<span class="chip">${s}</span>`).join("")}</div>`).join("");
     const edu = d.education.map(e =>
-      `<div class="edu"><div class="d">${e.degree}</div><div class="s">${e.shortSchool}</div><div class="m">${e.date} · GPA ${e.gpa}</div></div>`).join("");
+      `<div class="edu"><div class="d">${e.degree}</div><div class="s">${e.shortSchool}</div><div class="m">${[e.date, e.gpa ? "GPA " + e.gpa : ""].filter(Boolean).join(" · ")}</div></div>`).join("");
     const jobs = d.experience.map(j =>
       `<div class="exp" data-rb-drag="exp:${j.id}"><div class="top"><div class="ttl">${j.title} · <span class="co">${j.company}</span></div><div class="dt">${j.date}</div></div><ul class="b">${H.bullets(j)}</ul></div>`).join("");
     const pubs = H.pubs(d, true).map(p =>
@@ -61,19 +61,19 @@ registerTemplate({
       <aside class="aside">
         <div class="name">${d.name}</div><div class="role">${d.title}</div>
         <div class="ablock"><div class="atitle">Contact</div>
-          <div class="crow"><span class="k">Email</span><a href="mailto:${C.email}">${C.email}</a></div>
-          <div class="crow"><span class="k">Location</span>${C.location}</div>
-          <div class="crow"><span class="k">Website</span><a href="${C.websiteUrl}">${C.website}</a></div>
-          <div class="crow"><span class="k">LinkedIn</span><a href="${C.linkedinUrl}">${C.linkedin}</a></div>
-          <div class="crow"><span class="k">GitHub</span><a href="${C.githubUrl}">${C.github}</a></div>
+          ${C.email ? `<div class="crow"><span class="k">Email</span><a href="mailto:${C.email}">${C.email}</a></div>` : ""}
+          ${C.location ? `<div class="crow"><span class="k">Location</span>${C.location}</div>` : ""}
+          ${C.website ? `<div class="crow"><span class="k">Website</span><a href="${C.websiteUrl}">${C.website}</a></div>` : ""}
+          ${C.linkedin ? `<div class="crow"><span class="k">LinkedIn</span><a href="${C.linkedinUrl}">${C.linkedin}</a></div>` : ""}
+          ${C.github ? `<div class="crow"><span class="k">GitHub</span><a href="${C.githubUrl}">${C.github}</a></div>` : ""}
         </div>
-        <div class="ablock"><div class="atitle">Skills</div>${skillBlocks}</div>
-        <div class="ablock"><div class="atitle">Education</div>${edu}</div>
+        ${skillBlocks ? `<div class="ablock"><div class="atitle">Skills</div>${skillBlocks}</div>` : ""}
+        ${edu ? `<div class="ablock"><div class="atitle">Education</div>${edu}</div>` : ""}
       </aside>
       <main class="main">
-        <p class="lead">${d.summary}</p>
-        <section><h2>Experience</h2>${jobs}</section>
-        <section><h2>Selected Publications</h2>${pubs}</section>
+        ${d.summary ? `<p class="lead">${d.summary}</p>` : ""}
+        ${jobs ? `<section><h2>Experience</h2>${jobs}</section>` : ""}
+        ${pubs ? `<section><h2>Selected Publications</h2>${pubs}</section>` : ""}
       </main>
     </div>`;
   }

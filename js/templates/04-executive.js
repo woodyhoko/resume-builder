@@ -43,7 +43,7 @@ registerTemplate({
     const jobs = d.experience.map(j =>
       `<div class="exp" data-rb-drag="exp:${j.id}"><div class="top"><div class="ttl">${j.title} &nbsp;·&nbsp; <span class="co">${j.company}</span></div><div class="dt">${j.date}</div></div><ul class="b">${H.bullets(j)}</ul></div>`).join("");
     const edu = d.education.map(e =>
-      `<div class="edu"><div class="d">${e.degree}</div><div class="s">${e.shortSchool} · GPA ${e.gpa}</div><div class="m">${e.date}</div></div>`).join("");
+      `<div class="edu"><div class="d">${e.degree}</div><div class="s">${[e.shortSchool, e.gpa ? "GPA " + e.gpa : ""].filter(Boolean).join(" · ")}</div><div class="m">${e.date}</div></div>`).join("");
     const pubs = H.pubs(d, true).map(p =>
       `<div class="pub"><span class="t">${p.title}</span> — <span class="v">${p.venue}</span>${p.note?`, ${p.note}`:""}.</div>`).join("");
     const skills = Object.entries(d.skills).map(([cat, arr]) =>
@@ -51,18 +51,13 @@ registerTemplate({
     return `<div class="page">
       <div class="head">
         <div><div class="name">${d.name}</div><div class="role">${d.title.replace("AI/ML","AI / ML")}</div></div>
-        <div class="contact">
-          <div><a href="mailto:${C.email}">${C.email}</a></div>
-          <div>${C.location}</div>
-          <div><a href="${C.websiteUrl}">${C.website}</a> · <a href="${C.linkedinUrl}">${C.linkedin}</a></div>
-          <div><a href="${C.githubUrl}">${C.github}</a></div>
-        </div>
+        <div class="contact">${H.contactJoin(C, "<br>")}</div>
       </div>
-      <p class="lead">${d.summary}</p>
-      <h2>Experience</h2>${jobs}
-      <h2>Education</h2><div class="cols">${edu}</div>
-      <h2>Selected Publications</h2>${pubs}
-      <h2>Technical Skills</h2><div class="sk">${skills}</div>
+      ${d.summary ? `<p class="lead">${d.summary}</p>` : ""}
+      ${jobs ? `<h2>Experience</h2>${jobs}` : ""}
+      ${edu ? `<h2>Education</h2><div class="cols">${edu}</div>` : ""}
+      ${pubs ? `<h2>Selected Publications</h2>${pubs}` : ""}
+      ${skills ? `<h2>Technical Skills</h2><div class="sk">${skills}</div>` : ""}
     </div>`;
   }
 });
