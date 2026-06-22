@@ -28,9 +28,14 @@ in [`pdf/`](pdf/).
 
 - **Nine switchable designs** rendered from one shared data model.
 - **✦ Editor drawer** with on-device AI:
-  - **Import your résumé** — upload a PDF / TXT / MD / JSON (or paste text). Parsed
-    into editable blocks and cached in your browser (localStorage). PDF text is
-    extracted with `pdf.js`.
+  - **Import your résumé** — upload a PDF / TXT / MD / JSON (or paste text), then choose:
+    - **Build résumé from this** — treat the document as the whole résumé and recreate
+      it (name, contact, summary, experience, education, skills).
+    - **Add as block library** — treat it as an extended/master CV; every entry goes to
+      the **Collection** so you drag in only what you want to show.
+    A section-aware parser (or the local AI, if loaded) extracts the blocks; a confirm
+    step shows what was found before anything changes. Cached in your browser; PDF text
+    via `pdf.js`.
   - **Drag-and-drop experience blocks** — reorder by dragging, include/exclude with a
     checkbox, edit inline, delete, or **+ add** new blocks. The résumé re-renders live.
   - **Rephrase with AI** — pick a tone (Professional / Concise / Impact / Leadership /
