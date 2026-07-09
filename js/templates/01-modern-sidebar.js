@@ -63,7 +63,7 @@ registerTemplate({
       `<div class="job" data-rb-drag="exp:${j.id}"><div class="job-top"><div class="job-title">${j.title} · <span class="job-co">${j.company}</span></div><div class="job-date">${j.date}</div></div><ul class="bullets">${H.bullets(j)}</ul></div>`).join("");
     const pubs = H.pubs(d, true).map(p =>
       `<div class="pub"><span class="t">${p.title}</span> — <span class="v">${p.venue}</span>${p.note?`, ${p.note}`:""}.</div>`).join("");
-    const projs = d.projects.map(p =>
+    const projs = (d.projects || []).map(p =>
       `<div class="proj"><span class="pn">${p.name}</span> — <span class="pd">${p.desc}</span></div>`).join("");
     const cr = (lbl, inner) => inner ? `<div class="contact-row"><span class="lbl">${lbl}</span>${inner}</div>` : "";
     const sec = (title, body) => body ? `<section class="sec"><div class="sec-head"><h2>${title}</h2><div class="bar"></div></div>${body}</section>` : "";
@@ -72,6 +72,7 @@ registerTemplate({
         <div class="name">${d.name}</div><div class="role">${d.title}</div>
         <div class="sb-block"><div class="sb-title">Contact</div>
           ${cr("✉", C.email ? `<a href="mailto:${C.email}">${C.email}</a>` : "")}
+          ${cr("☎", C.phone ? `<span>${C.phone}</span>` : "")}
           ${cr("⌖", C.location ? `<span>${C.location}</span>` : "")}
           ${cr("⊕", C.website ? `<a href="${C.websiteUrl}">${C.website}</a>` : "")}
           ${cr("in", C.linkedin ? `<a href="${C.linkedinUrl}">${C.linkedin}</a>` : "")}

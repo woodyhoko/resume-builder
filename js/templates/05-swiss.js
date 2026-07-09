@@ -56,7 +56,7 @@ registerTemplate({
       content ? `<div class="row"><div class="label"><span class="n">${n}</span>${label}</div><div class="content">${content}</div></div>` : "";
     return `<div class="page">
       <div class="hero">
-        <div class="name">Ho <b>Ko</b></div>
+        <div class="name">${H.accentName(d.name)}</div>
         <div class="meta">
           <div class="role">${d.title}</div>
           <div class="contact">${H.contactJoin(C, " &nbsp; ")}</div>

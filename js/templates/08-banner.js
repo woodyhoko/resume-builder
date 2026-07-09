@@ -49,7 +49,7 @@ registerTemplate({
   `,
   render(d, H) {
     const C = d.contact;
-    const hl = d.highlights.map(h => `<span>${h}</span>`).join("");
+    const hl = (d.highlights || []).map(h => `<span>${h}</span>`).join("");
     const jobs = d.experience.map(j =>
       `<div class="exp" data-rb-drag="exp:${j.id}"><div class="top"><div class="ttl">${j.title} · <span class="co">${j.company}</span></div><div class="dt">${j.date}</div></div><ul class="b">${H.bullets(j)}</ul></div>`).join("");
     const edu = d.education.map(e =>
