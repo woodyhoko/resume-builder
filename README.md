@@ -42,10 +42,17 @@ in [`pdf/`](pdf/).
     Plain) and an optional instruction, then rewrite any block's bullets locally.
   - **Auto-fit** — scales oversized content down so it always exports as one page.
 - **Edit text** — toggle in-place editing to tweak wording before exporting.
+- **Export JSON backup** — download your résumé state as JSON and re-import it later
+  (or on another machine) with *Build résumé from this*.
 - **Save as PDF** — native print pipeline; crisp, vector, selectable text at exact Letter size.
 - **Download PDF** — one-click export; captures the page at exactly 816×1056 (US Letter
-  @96dpi) so it is never empty and never spills to a second page.
+  @96dpi) so it is never empty and never spills to a second page. The export libraries
+  (html2canvas + jsPDF) are vendored locally, so this works fully offline.
 - **Fit guard** — warns in the UI if edits push a design past one page.
+- **Keyboard** — `←`/`→` switch designs; `Esc` backs out of Arrange / Edit / the drawer.
+- **Safe imports** — everything parsed from an uploaded or pasted document is
+  HTML-escaped before rendering (simple `<b>`/`<em>` emphasis is preserved), so a
+  malicious document can't inject markup into the page.
 
 ### On-device AI (Gemma 4)
 
@@ -70,6 +77,7 @@ resume-builder/
 │   ├── editor.js           # drawer: import, drag-drop blocks, add/edit, rephrase
 │   ├── registry.js         # registerTemplate() + shared render helpers (H)
 │   ├── app.js              # switching, editing, PDF export, auto-fit, fit-check
+│   ├── vendor/             # html2canvas + jsPDF (vendored, MIT — offline PDF export)
 │   └── templates/          # ONE self-contained module per design
 │       ├── 01-modern-sidebar.js
 │       ├── 02-classic.js

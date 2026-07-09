@@ -9,23 +9,48 @@ window.ResumeStore = (function () {
   const RAW = "resumebuilder.rawupload.v2";
   const subs = [];
   let state = null;
+  let seq = 0;
 
   const clone = (o) => JSON.parse(JSON.stringify(o));
+  const str = (v) => (typeof v === "string" ? v : v == null ? "" : String(v));
 
+  // Heal any RESUME-shaped object: guarantee every field templates read
+  // exists with the right type, so stale localStorage states, imported
+  // JSON, and LLM output can never crash a render.
   function withFlags(d) {
-    (d.experience || []).forEach((e, i) => { if (e.include === undefined) e.include = true; if (e.id === undefined) e.id = "exp" + i + "_" + Math.abs(hash(e.title + e.company)); });
-    (d.projects || []).forEach((p, i) => { if (p.include === undefined) p.include = true; if (p.id === undefined) p.id = "prj" + i + "_" + Math.abs(hash(p.name)); });
-    (d.education || []).forEach((e, i) => { if (e.include === undefined) e.include = true; if (e.id === undefined) e.id = "edu" + i + "_" + Math.abs(hash(e.degree + e.school)); });
+    if (!d || typeof d !== "object" || Array.isArray(d)) d = {};
+    d.name = str(d.name); d.title = str(d.title);
+    d.tagline = str(d.tagline); d.summary = str(d.summary);
+    if (!d.contact || typeof d.contact !== "object") d.contact = {};
+    ["experience", "education", "projects", "publications", "highlights"].forEach((k) => {
+      if (!Array.isArray(d[k])) d[k] = [];
+    });
+    if (!d.skills || typeof d.skills !== "object" || Array.isArray(d.skills)) d.skills = {};
+    d.experience = d.experience.filter((e) => e && typeof e === "object");
+    d.education  = d.education.filter((e) => e && typeof e === "object");
+    d.experience.forEach((e, i) => {
+      if (!Array.isArray(e.bullets)) e.bullets = [];
+      if (e.include === undefined) e.include = true;
+      if (e.id === undefined) e.id = "exp" + i + "_" + Math.abs(hash(str(e.title) + str(e.company)));
+    });
+    d.projects.forEach((p, i) => { if (p.include === undefined) p.include = true; if (p.id === undefined) p.id = "prj" + i + "_" + Math.abs(hash(str(p.name))); });
+    d.education.forEach((e, i) => { if (e.include === undefined) e.include = true; if (e.id === undefined) e.id = "edu" + i + "_" + Math.abs(hash(str(e.degree) + str(e.school))); });
     if (!Array.isArray(d.skillsHidden)) d.skillsHidden = [];
     return d;
   }
   function hash(s) { let h = 0; s = String(s || ""); for (let i = 0; i < s.length; i++) { h = (h << 5) - h + s.charCodeAt(i) | 0; } return h; }
-  function uid(prefix) { return prefix + "_" + Math.abs(hash(prefix + state.experience.length + JSON.stringify(state).length)); }
+  function uid(prefix) { return prefix + "_" + Date.now().toString(36) + "_" + (++seq); }
 
   function defaults() { return withFlags(clone(window.RESUME)); }
 
   function load() {
-    try { const s = localStorage.getItem(KEY); if (s) { state = withFlags(JSON.parse(s)); return; } } catch (e) {}
+    try {
+      const s = localStorage.getItem(KEY);
+      if (s) {
+        const parsed = JSON.parse(s);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) { state = withFlags(parsed); return; }
+      }
+    } catch (e) { console.warn("[store] discarding unreadable saved state:", e); }
     state = defaults();
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
@@ -47,7 +72,7 @@ window.ResumeStore = (function () {
         skills
       });
     },
-    update: (fn) => { fn(state); save(); emit(); },
+    update: (fn) => { fn(state); withFlags(state); save(); emit(); },
     set: (ns) => { state = withFlags(ns); save(); emit(); },
     reset: () => { state = defaults(); save(); emit(); },
     subscribe: (cb) => subs.push(cb),

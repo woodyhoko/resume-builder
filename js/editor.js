@@ -11,10 +11,29 @@ window.ResumeEditor = (function () {
   let dragId = null;
   let eduDrag = null, skillDrag = null;
 
-  const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-  const decode = (s) => String(s == null ? "" : s).replace(/&amp;/g, "&").replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const decode = (s) => String(s == null ? "" : s).replace(/&nbsp;/g, " ").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
   const disp = (s) => esc(decode(s));   // for safe plain-text display of entity-bearing data
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+
+  // Imported documents are untrusted: escape all markup, then re-allow the
+  // simple emphasis tags our own JSON exports (and hand-written bullets) use.
+  const sanitizeText = (s) => esc(String(s == null ? "" : s))
+    .replace(/&lt;(\/?)(b|strong|em|i)&gt;/gi, "<$1$2>");
+  function sanitizeParsed(v) {
+    if (typeof v === "string") return sanitizeText(v);
+    if (Array.isArray(v)) return v.map(sanitizeParsed);
+    if (v && typeof v === "object") {
+      const o = {};
+      Object.keys(v).forEach((k) => { o[sanitizeText(k)] = k === "include" || k === "core" ? v[k] : sanitizeParsed(v[k]); });
+      return o;
+    }
+    return v;
+  }
+  // "Is the pointer in the lower half of this element?" — for drop targets.
+  // (ev.offsetY is relative to whichever CHILD the cursor is over, so it
+  // cannot be compared against the container's height.)
+  const inLowerHalf = (ev, elm) => { const r = elm.getBoundingClientRect(); return ev.clientY > r.top + r.height / 2; };
 
   function init() {
     build();
@@ -25,6 +44,7 @@ window.ResumeEditor = (function () {
   function build() {
     root = el("div"); root.id = "editor";
     root.innerHTML = `
+      <button id="ed-close" title="Close editor (Esc)" aria-label="Close editor">✕</button>
       <div class="ed-scroll">
         <h3>On-device AI (optional)</h3>
         <button class="ed-btn accent full" id="ed-load-ai">Load AI model (Gemma 4, ~3 GB)</button>
@@ -43,6 +63,7 @@ window.ResumeEditor = (function () {
         </div>
         <div class="row" style="margin-top:6px;">
           <button class="ed-btn" id="ed-reset">Reset to sample</button>
+          <button class="ed-btn" id="ed-export" title="Download your current résumé as JSON — re-import it later to continue where you left off">Export JSON backup</button>
         </div>
         <div class="hintline">
           <b>Build</b> = treat the file as the whole résumé and recreate it.<br>
@@ -91,10 +112,15 @@ window.ResumeEditor = (function () {
     toneSel = root.querySelector("#ed-tone");
     reqInput = root.querySelector("#ed-req");
 
+    root.querySelector("#ed-close").addEventListener("click", () => {
+      const b = document.getElementById("btn-editor");
+      if (b) b.click(); else toggle();     // the toolbar button owns the "on" state
+    });
     root.querySelector("#ed-load-ai").addEventListener("click", loadAI);
     root.querySelector("#ed-build").addEventListener("click", () => doParse("build"));
     root.querySelector("#ed-collect").addEventListener("click", () => doParse("collect"));
     root.querySelector("#ed-reset").addEventListener("click", () => { if (confirm("Reset to the sample résumé? Your edits will be cleared.")) store.reset(); });
+    root.querySelector("#ed-export").addEventListener("click", exportJSON);
     root.querySelector("#ed-add").addEventListener("click", addBlock);
     root.querySelector("#ed-autofit").addEventListener("change", (e) => {
       window.RBApp && (window.RBApp.autoFit = e.target.checked);
@@ -134,7 +160,10 @@ window.ResumeEditor = (function () {
         modelStatus.textContent = "Reading " + f.name + "…";
         if (/\.json$/i.test(f.name)) {
           const obj = JSON.parse(await f.text());
-          if (obj && obj.experience) { applyParsed(obj, mode); return; }
+          if (obj && (Array.isArray(obj.experience) || Array.isArray(obj.education) || obj.skills)) {
+            applyParsed(sanitizeParsed(obj), mode); return;
+          }
+          modelStatus.textContent = "That JSON doesn't look like a résumé export (no experience/education/skills)."; return;
         }
         text = /\.pdf$/i.test(f.name) ? await extractPdf(f) : await f.text();
       }
@@ -149,10 +178,12 @@ window.ResumeEditor = (function () {
       try { parsed = await parseWithLLM(text); } catch (e) { console.warn("LLM parse failed, using parser:", e); }
     }
     if (!parsed) parsed = heuristicParse(text);
+    parsed = sanitizeParsed(parsed);
 
     // Confirm before clobbering — lets the user catch a bad parse.
     const ne = (parsed.experience || []).length, nd = (parsed.education || []).length, ns = Object.keys(parsed.skills || {}).length;
-    const summary = "Found " + ne + " experience, " + nd + " education, " + ns + " skill group(s)" +
+    const np = (parsed.publications || []).length;
+    const summary = "Found " + ne + " experience, " + nd + " education, " + ns + " skill group(s)" + (np ? ", " + np + " publication(s)" : "") +
       (llm.isReady() ? " (AI parse)." : " (built-in parser — load AI for better accuracy).");
     const q = mode === "build"
       ? summary + "\n\nReplace your current résumé with this?"
@@ -169,6 +200,20 @@ window.ResumeEditor = (function () {
       store.set(normalize(parsed));
       modelStatus.textContent = "Résumé rebuilt from your document. Review the blocks and edit as needed.";
     }
+  }
+
+  // Download the current state as a JSON backup (re-importable via Build).
+  function exportJSON() {
+    try {
+      const blob = new Blob([JSON.stringify(store.get(), null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      const name = decode(store.get().name || "resume").trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "resume";
+      a.download = name + "-resume.json";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      modelStatus.textContent = "Backup downloaded — import it any time with “Build résumé from this”.";
+    } catch (e) { modelStatus.textContent = "Export failed: " + (e && e.message || e); }
   }
 
   // Append parsed blocks as a hidden library (Collection).
@@ -286,9 +331,14 @@ window.ResumeEditor = (function () {
     const contactLine = lines.slice(0, 6).find((l) => /[•|]|@|\d{3}[-.\s]\d{3}/.test(l)) || "";
     const loc = contactLine.match(/([A-Z][a-zA-Z.]+(?:\s[A-Z][a-zA-Z.]+){0,2},\s*[A-Z]{2})\b/); if (loc) contact.location = loc[1];
 
-    let name = "";
+    let name = "", title = "";
     const firstReal = lines.find((l) => l);
     if (firstReal && firstReal.length <= 40 && !/[@\d]/.test(firstReal)) name = firstReal;
+    // Headline: the line right under the name, if it isn't contact info or a section.
+    if (name) {
+      const after = lines.slice(lines.indexOf(name) + 1).find((l) => l);
+      if (after && after.length <= 70 && !CONTACT_RE(after) && !sectionOf(after) && !/\d{4}/.test(after)) title = after;
+    }
 
     const buckets = { summary: [], experience: [], education: [], skills: [], publications: [], additional: [] };
     let cur = "summary";
@@ -297,6 +347,7 @@ window.ResumeEditor = (function () {
       const sec = sectionOf(l);
       if (sec) { cur = sec; return; }
       if (l === name) return;
+      if (title && l === title && cur === "summary") return;
       if (cur === "summary" && (CONTACT_RE(l))) return;     // drop header contact line
       buckets[cur].push(l);
     });
@@ -306,16 +357,33 @@ window.ResumeEditor = (function () {
     buckets.additional.forEach((l) => { if (/skills?\s*:/i.test(l) || /:/.test(l)) skillLines.push(l); });
 
     const out = {
-      name, contact,
+      name, title, contact,
       summary: buckets.summary.join(" ").replace(/\s{2,}/g, " ").trim().slice(0, 700),
       experience: groupExperience(buckets.experience),
       education: groupEducation(buckets.education),
-      skills: parseSkills(skillLines)
+      skills: parseSkills(skillLines),
+      publications: groupPublications(buckets.publications)
     };
     if (!out.experience.length && !out.education.length && !Object.keys(out.skills).length) {
       out.experience = [{ title: "Imported résumé", company: "", date: "", bullets: lines.filter(Boolean) }];
     }
     return out;
+  }
+
+  // One publication per line; wrapped lines (lowercase start) join the previous
+  // one. "Title — Venue" splits on the em/en dash.
+  function groupPublications(arr) {
+    const lines = [];
+    arr.forEach((l) => {
+      l = l.replace(BULLET_RE, "").trim();
+      if (!l) return;
+      if (lines.length && /^[a-z(]/.test(l)) lines[lines.length - 1] += " " + l;
+      else lines.push(l);
+    });
+    return lines.map((l) => {
+      const m = l.match(/^(.{8,}?)\s+[—–]\s+(.+)$/);
+      return m ? { title: tidy(m[1]), venue: tidy(m[2]), note: "" } : { title: tidy(l), venue: "", note: "" };
+    });
   }
 
   function CONTACT_RE(l) {
@@ -332,12 +400,15 @@ window.ResumeEditor = (function () {
       if (isDateLine(l)) { if (cur) cur.date = (cur.date ? cur.date + " " : "") + l; return; }
       if (isLocation(l)) { if (cur) cur.location = l; return; }
       if (cur && expectCompany && !cur.company && cur.bullets.length === 0) { cur.company = l; expectCompany = false; return; }
-      // Wrapped continuation of the previous bullet (PDF line-wrap): lines that
-      // start lowercase, or follow a bullet that didn't end a sentence, are not
-      // new entries — append them to the last bullet.
+      // Wrapped continuation of the previous bullet (PDF line-wrap): a line that
+      // starts lowercase, or a long sentence-like line, is not a new entry —
+      // append it to the last bullet. Short title-case lines ("Software
+      // Engineer") are treated as the next entry's title, never as wrap.
       if (cur && cur.bullets.length) {
         const prev = cur.bullets[cur.bullets.length - 1];
-        if (/^[a-z(]/.test(l) || !/[.!?:]$/.test(prev)) { cur.bullets[cur.bullets.length - 1] = prev + " " + l; return; }
+        const startsLower = /^[a-z(]/.test(l);
+        const sentenceLike = l.length > 65 && !/[.!?:]$/.test(prev);
+        if (startsLower || sentenceLike) { cur.bullets[cur.bullets.length - 1] = prev + " " + l; return; }
       }
       cur = mk(l); expectCompany = true;
     });
@@ -360,7 +431,7 @@ window.ResumeEditor = (function () {
       if (isLocation(l)) return;
       if (cur && !cur.degree) cur.degree = l;
     });
-    out.forEach((e) => { e.date = (e.date.match(YEAR_RE) || [e.date])[0]; });
+    out.forEach((e) => { e.date = e.date.replace(/\s*[–—\-]\s*/g, " – ").replace(/\s{2,}/g, " ").replace(/–\s*$/, "").trim(); });
     return out.filter((e) => e.degree || e.school);
   }
 
@@ -394,10 +465,13 @@ window.ResumeEditor = (function () {
       github: c.github || "", githubUrl: c.github ? url(c.github) : ""
     };
     out.summary = obj.summary || "";
-    out.highlights = [];     // sample-only; don't carry into an imported résumé
-    out.projects = [];
+    out.tagline = obj.tagline || "";   // never carry the sample tagline into an import
+    // Kept when present (JSON backup round-trip); cleared otherwise so no
+    // sample content leaks into an imported résumé.
+    out.highlights = Array.isArray(obj.highlights) ? obj.highlights : [];
+    out.projects = Array.isArray(obj.projects) ? obj.projects : [];
     out.publications = Array.isArray(obj.publications) ? obj.publications : [];
-    out.skillsHidden = [];
+    out.skillsHidden = Array.isArray(obj.skillsHidden) ? obj.skillsHidden : [];
     if (Array.isArray(obj.experience) && obj.experience.length) {
       out.experience = obj.experience.map((e) => ({
         title: e.title || "Role", company: e.company || "", date: e.date || "",
@@ -460,8 +534,9 @@ window.ResumeEditor = (function () {
     b.addEventListener("dragover", (ev) => { ev.preventDefault(); });
     b.addEventListener("drop", (ev) => {
       ev.preventDefault();
-      const below = ev.offsetY > b.offsetHeight / 2;
-      store.update((s) => { const arr = s.education; if (eduDrag == null) return; const [m] = arr.splice(eduDrag, 1); let ti = idx > eduDrag ? idx - 1 : idx; arr.splice(below ? ti + 1 : ti, 0, m); });
+      if (eduDrag == null || eduDrag === idx) return;
+      const below = inLowerHalf(ev, b);
+      store.update((s) => { const arr = s.education; const [m] = arr.splice(eduDrag, 1); const ti = idx > eduDrag ? idx - 1 : idx; arr.splice(below ? ti + 1 : ti, 0, m); });
     });
     return b;
   }
@@ -485,7 +560,7 @@ window.ResumeEditor = (function () {
     b.addEventListener("dragover", (ev) => ev.preventDefault());
     b.addEventListener("drop", (ev) => {
       ev.preventDefault();
-      const below = ev.offsetY > b.offsetHeight / 2;
+      const below = inLowerHalf(ev, b);
       store.update((st) => {
         if (skillDrag == null || skillDrag === cat) return;
         const keys = Object.keys(st.skills);
@@ -522,16 +597,24 @@ window.ResumeEditor = (function () {
 
     b.addEventListener("dragstart", () => { dragId = e.id; b.classList.add("dragging"); });
     b.addEventListener("dragend", () => { dragId = null; b.classList.remove("dragging"); [...blocksEl.children].forEach((c) => c.classList.remove("drop-above", "drop-below")); });
-    b.addEventListener("dragover", (ev) => { ev.preventDefault(); const below = ev.offsetY > b.offsetHeight / 2; b.classList.toggle("drop-below", below); b.classList.toggle("drop-above", !below); });
+    b.addEventListener("dragover", (ev) => { ev.preventDefault(); const below = inLowerHalf(ev, b); b.classList.toggle("drop-below", below); b.classList.toggle("drop-above", !below); });
     b.addEventListener("dragleave", () => b.classList.remove("drop-above", "drop-below"));
     b.addEventListener("drop", (ev) => {
       ev.preventDefault();
-      const below = ev.offsetY > b.offsetHeight / 2;
+      const below = inLowerHalf(ev, b);
+      // Dropped block is either a visible one (dragId) or a Collection card
+      // (id travels in the dataTransfer payload as "collection:ID").
+      let fromId = dragId;
+      if (!fromId) {
+        const dt = ev.dataTransfer && ev.dataTransfer.getData("text/plain");
+        if (dt && dt.indexOf(":") > 0) fromId = dt.split(":")[1];
+      }
       store.update((s) => {
-        const from = s.experience.findIndex((x) => x.id === dragId);
+        const from = s.experience.findIndex((x) => x.id === fromId);
         let to = s.experience.findIndex((x) => x.id === e.id);
         if (from < 0 || to < 0 || from === to) return;
         const [moved] = s.experience.splice(from, 1);
+        moved.include = true;
         to = s.experience.findIndex((x) => x.id === e.id);
         s.experience.splice(below ? to + 1 : to, 0, moved);
       });

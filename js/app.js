@@ -41,7 +41,12 @@
     descEl.textContent = t.description || "";
     if (editing) setEdit(true);
     requestAnimationFrame(() => { fitToPage(); enableArrange(); checkFit(); });
-    try { history.replaceState(null, "", "?t=" + t.key); } catch (e) {}
+    // Keep the other query params (editor/arrange deep-links) intact.
+    try {
+      const q = new URLSearchParams(location.search);
+      q.set("t", t.key);
+      history.replaceState(null, "", "?" + q.toString());
+    } catch (e) {}
   }
 
   // ---- On-résumé drag-to-reorder (Arrange mode) ----
@@ -71,7 +76,10 @@
       elm.addEventListener("dragleave", () => elm.classList.remove("rb-over"));
       elm.addEventListener("drop", (ev) => {
         ev.preventDefault(); elm.classList.remove("rb-over");
-        const below = ev.offsetY > elm.offsetHeight / 2;
+        // ev.offsetY is relative to the child under the cursor — measure
+        // against the entry's own box instead.
+        const r = elm.getBoundingClientRect();
+        const below = ev.clientY > r.top + r.height / 2;
         dropExp(dragKey || (ev.dataTransfer && ev.dataTransfer.getData("text/plain")), key.slice(4), below);
         dragKey = null;
       });
@@ -156,11 +164,17 @@
   }
 
   function cycle(delta) {
+    if (!TPLS.length) return;
     const i = (indexOf(current) + delta + TPLS.length) % TPLS.length;
     apply(TPLS[i].key);
   }
 
   // ---- Export ----
+  function fileSlug(name) {
+    const plain = String(name || "").replace(/&amp;/g, "&").replace(/<[^>]*>/g, "");
+    return plain.trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "") || "Resume";
+  }
+
   async function savePDF() {
     setEdit(false);
     if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (e) {} }
@@ -208,7 +222,7 @@
       const canvas = await renderCanvas();
       const pdf = canvas && canvasToLetterPdf(canvas);
       if (!pdf) { return savePDF(); }
-      pdf.save("Ho-Ko-Resume-" + current + ".pdf");
+      pdf.save(fileSlug(DATAVIEW().name) + "-Resume-" + current + ".pdf");
     } catch (e) {
       console.error("Download failed, falling back to print:", e);
       savePDF();
@@ -232,16 +246,37 @@
   if (window.ResumeStore) window.ResumeStore.subscribe(() => apply(current));
 
   const arrBtn = document.getElementById("btn-arrange");
+  function setArrange(on) {
+    window.RBApp.arrange = on;
+    arrBtn.classList.toggle("on", on);
+    document.body.classList.toggle("arranging", on);   // hides the print hint, which shares its spot
+    apply(current);
+  }
   if (arrBtn) {
-    arrBtn.addEventListener("click", () => {
-      window.RBApp.arrange = !window.RBApp.arrange;
-      arrBtn.classList.toggle("on", window.RBApp.arrange);
-      apply(current);
-    });
+    arrBtn.addEventListener("click", () => setArrange(!window.RBApp.arrange));
     if (new URLSearchParams(location.search).get("arrange") === "1") {
-      window.RBApp.arrange = true; arrBtn.classList.add("on");
+      window.RBApp.arrange = true; arrBtn.classList.add("on"); document.body.classList.add("arranging");
     }
   }
+
+  // Keyboard: ←/→ switch designs, Esc backs out of arrange/edit/editor modes.
+  window.addEventListener("keydown", (ev) => {
+    const t = ev.target;
+    const typing = t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName));
+    if (ev.key === "Escape") {
+      if (editing) { setEdit(false); return; }
+      if (window.RBApp.arrange) { setArrange(false); return; }
+      const ed = document.getElementById("editor");
+      if (ed && ed.classList.contains("open") && window.ResumeEditor) {
+        window.ResumeEditor.toggle();
+        const b = document.getElementById("btn-editor"); b && b.classList.remove("on");
+      }
+      return;
+    }
+    if (typing || editing || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    if (ev.key === "ArrowLeft") { ev.preventDefault(); cycle(-1); }
+    else if (ev.key === "ArrowRight") { ev.preventDefault(); cycle(1); }
+  });
 
   // Editor drawer
   if (window.ResumeEditor) {

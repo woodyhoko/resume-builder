@@ -62,6 +62,7 @@ registerTemplate({
         <div class="name">${d.name}</div><div class="role">${d.title}</div>
         <div class="ablock"><div class="atitle">Contact</div>
           ${C.email ? `<div class="crow"><span class="k">Email</span><a href="mailto:${C.email}">${C.email}</a></div>` : ""}
+          ${C.phone ? `<div class="crow"><span class="k">Phone</span>${C.phone}</div>` : ""}
           ${C.location ? `<div class="crow"><span class="k">Location</span>${C.location}</div>` : ""}
           ${C.website ? `<div class="crow"><span class="k">Website</span><a href="${C.websiteUrl}">${C.website}</a></div>` : ""}
           ${C.linkedin ? `<div class="crow"><span class="k">LinkedIn</span><a href="${C.linkedinUrl}">${C.linkedin}</a></div>` : ""}

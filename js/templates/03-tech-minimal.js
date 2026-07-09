@@ -60,6 +60,7 @@ registerTemplate({
       <header><div><div class="name">${d.name}</div><div class="role">${d.title}</div></div>
         <div class="contact">
           ${C.email ? `<div><span class="k">email</span> <a href="mailto:${C.email}">${C.email}</a></div>` : ""}
+          ${C.phone ? `<div><span class="k">tel&nbsp;&nbsp;</span> ${C.phone}</div>` : ""}
           ${C.location ? `<div><span class="k">loc&nbsp;&nbsp;</span> ${C.location}</div>` : ""}
           ${C.website ? `<div><span class="k">web&nbsp;&nbsp;</span> <a href="${C.websiteUrl}">${C.website}</a></div>` : ""}
           ${C.linkedin ? `<div><span class="k">li&nbsp;&nbsp;&nbsp;</span> <a href="${C.linkedinUrl}">${C.linkedin}</a></div>` : ""}

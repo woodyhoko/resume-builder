@@ -121,10 +121,16 @@ window.ResumeLLM = (function () {
     return new Promise((resolve, reject) => {
       let full = "";
       try {
-        llm.generateResponse(prompt, (partial, done) => {
-          if (partial) { full += partial; onToken && onToken(clean(full)); }
+        const ret = llm.generateResponse(prompt, (partial, done) => {
+          if (partial) {
+            full += partial;
+            try { onToken && onToken(clean(full)); } catch (e) {}
+          }
           if (done) resolve(clean(full));
         });
+        // Some runtime versions return a promise that rejects on failure —
+        // without this, a mid-stream error would hang the caller forever.
+        if (ret && typeof ret.catch === "function") ret.catch(reject);
       } catch (e) { reject(e); }
     });
   }
